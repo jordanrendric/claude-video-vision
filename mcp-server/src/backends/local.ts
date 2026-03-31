@@ -31,7 +31,7 @@ async function transcribeWithWhisperCpp(
 ): Promise<AudioResult> {
   const modelPath = `${modelDir}/ggml-${model}.bin`;
 
-  const { stdout } = await execFileAsync("whisper-cpp", [
+  const { stdout } = await execFileAsync("whisper-cli", [
     "--model", modelPath,
     "--file", wavPath,
     "--output-json",

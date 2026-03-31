@@ -45,7 +45,7 @@ export async function checkDependencies(backend: Backend, whisperEngine?: Whispe
   }
 
   if (backend === "local") {
-    const whisperCmd = whisperEngine === "python" ? "whisper" : "whisper-cpp";
+    const whisperCmd = whisperEngine === "python" ? "whisper" : "whisper-cli";
     if (!(await checkCommand(whisperCmd))) {
       missing.push(whisperCmd);
       const platform = detectPlatform();
