@@ -1,11 +1,13 @@
-import { execFile } from "child_process";
+import { execFile, exec } from "child_process";
 import { promisify } from "util";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
 import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 import type { AudioResult, TranscriptionSegment, AudioTag } from "../types.js";
 import type { WhisperEngine, WhisperModel } from "../types.js";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 
 function resolveModel(model: WhisperModel): string {
   if (model === "auto") {
@@ -42,13 +44,19 @@ async function transcribeWithWhisperCpp(
   const modelPath = `${modelDir}/ggml-${resolved}.bin`;
 
   if (!existsSync(modelPath)) {
+    const dir = dirname(modelPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
     const downloadUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${resolved}.bin`;
-    throw new Error(
-      `Whisper model not found at ${modelPath}\n\n` +
-      `Download it with:\n` +
-      `  curl -L -o "${modelPath}" "${downloadUrl}"\n\n` +
-      `Or choose a different model with /setup-video-vision`
-    );
+    console.error(`[cvv] Downloading whisper model ggml-${resolved}.bin...`);
+    await execAsync(`curl -L -o '${modelPath}' '${downloadUrl}'`, {
+      timeout: 600_000, // 10 min for large models
+    });
+    console.error(`[cvv] Model downloaded to ${modelPath}`);
+
+    if (!existsSync(modelPath)) {
+      throw new Error(`Failed to download model from ${downloadUrl}`);
+    }
   }
 
   const { stdout } = await execFileAsync("whisper-cli", [
