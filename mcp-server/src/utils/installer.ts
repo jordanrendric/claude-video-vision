@@ -36,14 +36,6 @@ export async function checkDependencies(backend: Backend, whisperEngine?: Whispe
     instructions.push("ffprobe is included with ffmpeg — install ffmpeg to get it");
   }
 
-  if (backend === "gemini-cli") {
-    if (!(await checkCommand("gemini"))) {
-      missing.push("gemini-cli");
-      instructions.push("npm install -g @google/gemini-cli");
-      instructions.push("Then run: gemini auth");
-    }
-  }
-
   if (backend === "gemini-api") {
     if (!process.env.GEMINI_API_KEY) {
       missing.push("GEMINI_API_KEY");

@@ -4,7 +4,7 @@ import { dirname } from "path";
 import type { Config } from "./types.js";
 
 export const defaultConfig: Config = {
-  backend: "gemini-cli",
+  backend: "unconfigured",
   whisper_engine: "cpp",
   whisper_model: "auto",
   whisper_at: false,

@@ -17,7 +17,7 @@ describe("config", () => {
 
   it("returns default config when no file exists", () => {
     const config = loadConfig(join(TEST_DIR, "config.json"));
-    expect(config.backend).toBe("gemini-cli");
+    expect(config.backend).toBe("unconfigured");
     expect(config.frame_mode).toBe("images");
     expect(config.frame_resolution).toBe(512);
     expect(config.default_fps).toBe("auto");

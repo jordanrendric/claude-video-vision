@@ -7,7 +7,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../config.js";
 import { getVideoMetadata, extractFrames, calculateAutoFps } from "../extractors/frames.js";
 import { extractAudio } from "../extractors/audio.js";
-import { analyzeWithGeminiCli } from "../backends/gemini-cli.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
@@ -15,10 +14,19 @@ import type { AudioResult, VideoWatchResult } from "../types.js";
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
 
+const UNCONFIGURED_MESSAGE = `## claude-video-vision is not configured yet!
+
+Please run **/setup-video-vision** to configure the plugin before using it.
+
+Available backends:
+- **Gemini API** — Best quality. Analyzes audio natively. Free tier: 1500 req/day. Requires GEMINI_API_KEY.
+- **Local (Whisper)** — Free, fully offline. Requires whisper.cpp or openai-whisper installed.
+- **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.`;
+
 export function registerVideoWatch(server: McpServer): void {
   server.tool(
     "video_watch",
-    "Extract frames and process audio from a video file. Returns frames (as base64 images or text descriptions) + transcription + audio analysis for Claude to understand the video content.",
+    "Extract frames and process audio from a video file. Returns frames (as base64 images or text descriptions) + transcription + audio analysis for Claude to understand the video content. IMPORTANT: If not configured, tell the user to run /setup-video-vision first.",
     {
       path: z.string().describe("Path to the video file"),
       fps: z.union([z.number().positive(), z.literal("auto")]).default("auto").describe("Frames per second to extract"),
@@ -30,6 +38,12 @@ export function registerVideoWatch(server: McpServer): void {
     },
     async (params) => {
       const config = loadConfig(CONFIG_PATH);
+
+      // Block if not configured
+      if (config.backend === "unconfigured") {
+        return { content: [{ type: "text", text: UNCONFIGURED_MESSAGE }] };
+      }
+
       const resolution = params.resolution || config.frame_resolution;
       const frameMode = params.frame_mode || config.frame_mode;
 
@@ -58,14 +72,7 @@ export function registerVideoWatch(server: McpServer): void {
 
       let audioPromise: Promise<AudioResult>;
 
-      if (config.backend === "gemini-cli") {
-        // Gemini CLI needs WAV audio (doesn't support video via read_file)
-        const audioDir = join(workDir, "audio");
-        audioPromise = extractAudio(params.path, audioDir, {
-          startTime: params.start_time,
-          endTime: params.end_time,
-        }).then((wavPath) => analyzeWithGeminiCli(wavPath));
-      } else if (config.backend === "gemini-api") {
+      if (config.backend === "gemini-api") {
         audioPromise = analyzeWithGeminiApi(params.path);
       } else if (config.backend === "openai") {
         const audioDir = join(workDir, "audio");

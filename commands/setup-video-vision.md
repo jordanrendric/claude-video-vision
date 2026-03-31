@@ -10,15 +10,15 @@ Guide the user through configuring claude-video-vision step by step. Ask one que
 
 Ask the user:
 
-> Which backend do you want to use for audio/video analysis?
+> Which backend do you want to use for audio analysis?
 >
-> **a) Gemini CLI** (recommended) — Free with Google dev subscription. Processes video + audio natively. Requires `@google/gemini-cli` installed.
+> **a) Gemini API** (recommended) — Best quality. Analyzes audio natively with Gemini Flash. Free tier: 1500 requests/day. Requires a GEMINI_API_KEY (free at ai.google.dev).
 >
-> **b) Gemini API** — Same capabilities as CLI but uses API key. Paid per usage (cheap with Flash model).
+> **b) Local (Whisper)** — Free, fully offline. Uses whisper.cpp or openai-whisper for audio transcription. No cloud dependency.
 >
-> **c) Local (Whisper)** — Free, fully offline. Uses ffmpeg for frames + whisper for audio transcription. No video understanding, audio only.
+> **c) OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY. Paid per usage.
 >
-> **d) OpenAI Whisper API** — Paid API for audio transcription. Uses ffmpeg for frames. No video understanding, audio only.
+> All backends use ffmpeg to extract video frames — Claude sees the frames directly.
 
 After the user answers, call `video_configure` with the chosen `backend`.
 

@@ -6,9 +6,9 @@ import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 export function registerVideoSetup(server: McpServer): void {
   server.tool(
     "video_setup",
-    "Check and install dependencies for video perception (ffmpeg, whisper, gemini cli). Always asks permission before installing.",
+    "Check and install dependencies for video perception (ffmpeg, whisper, gemini api). Always asks permission before installing.",
     {
-      backend: z.enum(["gemini-cli", "gemini-api", "local", "openai"]).default("gemini-cli"),
+      backend: z.enum(["gemini-api", "local", "openai"]).describe("Audio processing backend"),
       whisper_engine: z.enum(["cpp", "python"]).default("cpp"),
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).default("auto"),
     },

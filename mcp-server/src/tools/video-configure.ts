@@ -11,7 +11,7 @@ export function registerVideoConfigure(server: McpServer): void {
     "video_configure",
     "Configure video perception preferences (backend, resolution, fps, whisper model, etc.)",
     {
-      backend: z.enum(["gemini-cli", "gemini-api", "local", "openai"]).optional(),
+      backend: z.enum(["gemini-api", "local", "openai"]).optional(),
       whisper_engine: z.enum(["cpp", "python"]).optional(),
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).optional(),
       whisper_at: z.boolean().optional(),
