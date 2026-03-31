@@ -1,14 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { buildGeminiCliArgs, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
+import { buildGeminiCommand, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
 
 describe("gemini-cli backend", () => {
-  describe("buildGeminiCliArgs", () => {
-    it("builds correct args for video analysis", () => {
-      const args = buildGeminiCliArgs("/path/to/video.mp4");
-      expect(args).toContain("-p");
-      expect(args).toContain("--output-format");
-      expect(args).toContain("json");
-      expect(args.some((a) => a.includes("video.mp4"))).toBe(true);
+  describe("buildGeminiCommand", () => {
+    it("builds correct piped command for video analysis", () => {
+      const cmd = buildGeminiCommand("/path/to/video.mp4");
+      expect(cmd).toContain('echo "@/path/to/video.mp4"');
+      expect(cmd).toContain("gemini -p");
+      expect(cmd).toContain("--output-format json");
+    });
+
+    it("escapes paths with spaces", () => {
+      const cmd = buildGeminiCommand("/path/to/my video.mp4");
+      expect(cmd).toContain("my video.mp4");
     });
   });
 
@@ -20,6 +24,14 @@ describe("gemini-cli backend", () => {
       const result = parseGeminiCliOutput(mockOutput);
       expect(result.full_analysis).toContain("person coding");
       expect(result.backend).toBe("gemini-cli");
+    });
+
+    it("extracts JSON from output with debug lines", () => {
+      const mockOutput = `Loading extension: context7
+Loading extension: nanobanana
+{"session_id":"abc","response":"A blue screen video","stats":{}}`;
+      const result = parseGeminiCliOutput(mockOutput);
+      expect(result.full_analysis).toBe("A blue screen video");
     });
 
     it("handles error output gracefully", () => {
