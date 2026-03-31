@@ -1,18 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { buildGeminiCommand, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
+import { buildGeminiArgs, buildStdinContent, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
 
 describe("gemini-cli backend", () => {
-  describe("buildGeminiCommand", () => {
-    it("builds correct piped command for video analysis", () => {
-      const cmd = buildGeminiCommand("/path/to/video.mp4");
-      expect(cmd).toContain('echo "@/path/to/video.mp4"');
-      expect(cmd).toContain("gemini -p");
-      expect(cmd).toContain("--output-format json");
+  describe("buildGeminiArgs", () => {
+    it("builds correct args for video analysis", () => {
+      const args = buildGeminiArgs();
+      expect(args).toContain("-p");
+      expect(args).toContain("--output-format");
+      expect(args).toContain("json");
+    });
+  });
+
+  describe("buildStdinContent", () => {
+    it("creates @ file reference", () => {
+      const stdin = buildStdinContent("/path/to/video.mp4");
+      expect(stdin).toBe("@/path/to/video.mp4");
     });
 
-    it("escapes paths with spaces", () => {
-      const cmd = buildGeminiCommand("/path/to/my video.mp4");
-      expect(cmd).toContain("my video.mp4");
+    it("handles paths with spaces", () => {
+      const stdin = buildStdinContent("/path/to/my video.mp4");
+      expect(stdin).toBe("@/path/to/my video.mp4");
     });
   });
 

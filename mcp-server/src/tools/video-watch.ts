@@ -41,12 +41,13 @@ export function registerVideoWatch(server: McpServer): void {
         ? calculateAutoFps(metadata.duration_seconds)
         : params.fps;
 
-      // 3. Extract frames (all backends)
+      // 3. Prepare work dir
       const workDir = join(tmpdir(), `cvv-${Date.now()}`);
       mkdirSync(workDir, { recursive: true });
-
       const framesDir = join(workDir, "frames");
-      const frames = await extractFrames(params.path, {
+
+      // 4. Run frame extraction and audio processing IN PARALLEL
+      const framesPromise = extractFrames(params.path, {
         fps,
         resolution,
         outputDir: framesDir,
@@ -55,35 +56,36 @@ export function registerVideoWatch(server: McpServer): void {
         maxFrames: config.max_frames,
       });
 
-      // 4. Process audio based on backend
-      let audio: AudioResult;
+      let audioPromise: Promise<AudioResult>;
 
       if (config.backend === "gemini-cli") {
-        audio = await analyzeWithGeminiCli(params.path);
+        audioPromise = analyzeWithGeminiCli(params.path);
       } else if (config.backend === "gemini-api") {
-        audio = await analyzeWithGeminiApi(params.path);
+        audioPromise = analyzeWithGeminiApi(params.path);
       } else if (config.backend === "openai") {
         const audioDir = join(workDir, "audio");
-        const wavPath = await extractAudio(params.path, audioDir, {
+        audioPromise = extractAudio(params.path, audioDir, {
           startTime: params.start_time,
           endTime: params.end_time,
-        });
-        audio = await transcribeWithOpenAI(wavPath);
+        }).then((wavPath) => transcribeWithOpenAI(wavPath));
       } else {
         // local
         const audioDir = join(workDir, "audio");
-        const wavPath = await extractAudio(params.path, audioDir, {
+        const modelDir = join(homedir(), ".claude-video-vision", "models");
+        audioPromise = extractAudio(params.path, audioDir, {
           startTime: params.start_time,
           endTime: params.end_time,
-        });
-        const modelDir = join(homedir(), ".claude-video-vision", "models");
-        audio = await transcribeWithWhisper(wavPath, {
-          engine: config.whisper_engine,
-          model: config.whisper_model,
-          whisperAt: config.whisper_at,
-          modelDir,
-        });
+        }).then((wavPath) =>
+          transcribeWithWhisper(wavPath, {
+            engine: config.whisper_engine,
+            model: config.whisper_model,
+            whisperAt: config.whisper_at,
+            modelDir,
+          }),
+        );
       }
+
+      const [frames, audio] = await Promise.all([framesPromise, audioPromise]);
 
       // 5. Build result
       const result: VideoWatchResult = { metadata, frames, audio };
