@@ -1,14 +1,17 @@
-import { spawn } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
 import type { AudioResult } from "../types.js";
+
+const execAsync = promisify(exec);
 
 const GEMINI_PROMPT = "Analyze this video in detail. Provide: 1) A complete transcription of all speech with timestamps. 2) Description of non-speech audio events (music, sound effects, ambient sounds, coughs, animal sounds) with timestamps. 3) A detailed visual description of what happens. Format with sections: TRANSCRIPTION, AUDIO_EVENTS, VISUAL_DESCRIPTION.";
 
-export function buildGeminiArgs(customPrompt?: string): string[] {
-  return ["-p", customPrompt || GEMINI_PROMPT, "--output-format", "json"];
-}
-
-export function buildStdinContent(videoPath: string): string {
-  return `@${videoPath}`;
+export function buildGeminiCommand(videoPath: string, customPrompt?: string): string {
+  const prompt = customPrompt || GEMINI_PROMPT;
+  // Escape single quotes in path and prompt for shell safety
+  const safePath = videoPath.replace(/'/g, "'\\''");
+  const safePrompt = prompt.replace(/'/g, "'\\''");
+  return `echo '@${safePath}' | gemini -p '${safePrompt}' --output-format json`;
 }
 
 export function parseGeminiCliOutput(output: string): AudioResult {
@@ -36,40 +39,12 @@ export function parseGeminiCliOutput(output: string): AudioResult {
 }
 
 export async function analyzeWithGeminiCli(videoPath: string): Promise<AudioResult> {
-  const args = buildGeminiArgs();
-  const stdinContent = buildStdinContent(videoPath);
+  const command = buildGeminiCommand(videoPath);
 
-  return new Promise((resolve, reject) => {
-    const proc = spawn("gemini", args, {
-      timeout: 300_000,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code !== 0 && !stdout.includes("response")) {
-        reject(new Error(`Gemini CLI exited with code ${code}: ${stderr || stdout}`));
-        return;
-      }
-      resolve(parseGeminiCliOutput(stdout));
-    });
-
-    proc.on("error", (err) => {
-      reject(new Error(`Failed to start Gemini CLI: ${err.message}`));
-    });
-
-    // Write file reference to stdin and close
-    proc.stdin.write(stdinContent);
-    proc.stdin.end();
+  const { stdout, stderr } = await execAsync(command, {
+    timeout: 300_000, // 5 min timeout
+    maxBuffer: 50 * 1024 * 1024, // 50MB buffer
   });
+
+  return parseGeminiCliOutput(stdout || stderr);
 }
