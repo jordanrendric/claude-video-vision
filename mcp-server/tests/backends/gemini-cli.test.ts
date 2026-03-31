@@ -1,23 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { buildGeminiCommand, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
+import { buildGeminiCommand, getGeminiTmpDir, parseGeminiCliOutput } from "../../src/backends/gemini-cli.js";
 
 describe("gemini-cli backend", () => {
   describe("buildGeminiCommand", () => {
-    it("builds correct piped command", () => {
-      const cmd = buildGeminiCommand("/path/to/video.mp4");
-      expect(cmd).toContain("echo '@/path/to/video.mp4'");
+    it("builds command with include-directories and yolo flag", () => {
+      const cmd = buildGeminiCommand("/tmp/cvv");
       expect(cmd).toContain("gemini -p");
+      expect(cmd).toContain("audio.wav");
       expect(cmd).toContain("--output-format json");
+      expect(cmd).toContain("-y");
+      expect(cmd).toContain("--include-directories");
+      expect(cmd).toContain("/tmp/cvv");
     });
 
-    it("handles paths with spaces", () => {
-      const cmd = buildGeminiCommand("/path/to/my video.mp4");
-      expect(cmd).toContain("@/path/to/my video.mp4");
-    });
-
-    it("escapes single quotes in path", () => {
-      const cmd = buildGeminiCommand("/path/it's a video.mp4");
+    it("escapes single quotes in workdir", () => {
+      const cmd = buildGeminiCommand("/tmp/it's dir");
       expect(cmd).toContain("\\'");
+    });
+  });
+
+  describe("getGeminiTmpDir", () => {
+    it("returns a path under ~/.gemini/tmp", () => {
+      const dir = getGeminiTmpDir();
+      expect(dir).toContain(".gemini/tmp/claude-video-vision");
     });
   });
 

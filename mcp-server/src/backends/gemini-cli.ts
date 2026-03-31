@@ -1,24 +1,33 @@
 import { exec } from "child_process";
 import { promisify } from "util";
+import { copyFileSync, mkdirSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import type { AudioResult } from "../types.js";
 
 const execAsync = promisify(exec);
 
-const GEMINI_PROMPT = "Analyze this video in detail. Provide: 1) A complete transcription of all speech with timestamps. 2) Description of non-speech audio events (music, sound effects, ambient sounds, coughs, animal sounds) with timestamps. 3) A detailed visual description of what happens. Format with sections: TRANSCRIPTION, AUDIO_EVENTS, VISUAL_DESCRIPTION.";
+const GEMINI_AUDIO_PROMPT = "Use your read_file tool to read the audio file audio.wav. Analyze the audio in detail with timestamps. Provide: 1) TRANSCRIPTION: Complete transcription of all speech with start/end timestamps. 2) AUDIO_EVENTS: Description of non-speech audio events (music, sound effects, ambient sounds, coughs, animal sounds, silence) with timestamps. Be precise with timestamps so they can be cross-referenced with video frames.";
 
-export function buildGeminiCommand(videoPath: string, customPrompt?: string): string {
-  const prompt = customPrompt || GEMINI_PROMPT;
-  // Escape single quotes in path and prompt for shell safety
-  const safePath = videoPath.replace(/'/g, "'\\''");
+export function getGeminiTmpDir(): string {
+  const tmpDir = join(homedir(), ".gemini", "tmp", "claude-video-vision");
+  if (!existsSync(tmpDir)) {
+    mkdirSync(tmpDir, { recursive: true });
+  }
+  return tmpDir;
+}
+
+export function buildGeminiCommand(workDir: string, customPrompt?: string): string {
+  const prompt = customPrompt || GEMINI_AUDIO_PROMPT;
   const safePrompt = prompt.replace(/'/g, "'\\''");
-  return `echo '@${safePath}' | gemini -p '${safePrompt}' --output-format json`;
+  const safeWorkDir = workDir.replace(/'/g, "'\\''");
+  return `gemini -p '${safePrompt}' --output-format json -y --include-directories '${safeWorkDir}'`;
 }
 
 export function parseGeminiCliOutput(output: string): AudioResult {
   let fullAnalysis: string;
 
   try {
-    // Gemini CLI outputs debug/loading lines before JSON — find the JSON object
     const jsonMatch = output.match(/\{[\s\S]*"response"[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -38,13 +47,30 @@ export function parseGeminiCliOutput(output: string): AudioResult {
   };
 }
 
-export async function analyzeWithGeminiCli(videoPath: string): Promise<AudioResult> {
-  const command = buildGeminiCommand(videoPath);
+export async function analyzeWithGeminiCli(wavPath: string): Promise<AudioResult> {
+  const tmpDir = getGeminiTmpDir();
+  const tmpAudio = join(tmpDir, "audio.wav");
 
-  const { stdout, stderr } = await execAsync(command, {
-    timeout: 300_000, // 5 min timeout
-    maxBuffer: 50 * 1024 * 1024, // 50MB buffer
-  });
+  try {
+    console.error(`[cvv] Copying audio to Gemini workspace...`);
+    copyFileSync(wavPath, tmpAudio);
 
-  return parseGeminiCliOutput(stdout || stderr);
+    const command = buildGeminiCommand(tmpDir);
+    console.error(`[cvv] Running Gemini CLI for audio analysis...`);
+
+    const { stdout, stderr } = await execAsync(command, {
+      timeout: 300_000,
+      maxBuffer: 50 * 1024 * 1024,
+      cwd: tmpDir,
+    });
+
+    console.error(`[cvv] Gemini CLI completed`);
+    return parseGeminiCliOutput(stdout || stderr);
+  } finally {
+    try {
+      if (existsSync(tmpAudio)) unlinkSync(tmpAudio);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
 }

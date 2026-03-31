@@ -59,7 +59,12 @@ export function registerVideoWatch(server: McpServer): void {
       let audioPromise: Promise<AudioResult>;
 
       if (config.backend === "gemini-cli") {
-        audioPromise = analyzeWithGeminiCli(params.path);
+        // Gemini CLI needs WAV audio (doesn't support video via read_file)
+        const audioDir = join(workDir, "audio");
+        audioPromise = extractAudio(params.path, audioDir, {
+          startTime: params.start_time,
+          endTime: params.end_time,
+        }).then((wavPath) => analyzeWithGeminiCli(wavPath));
       } else if (config.backend === "gemini-api") {
         audioPromise = analyzeWithGeminiApi(params.path);
       } else if (config.backend === "openai") {
