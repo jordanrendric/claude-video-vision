@@ -1,9 +1,18 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { existsSync } from "fs";
+import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 import type { AudioResult, TranscriptionSegment, AudioTag } from "../types.js";
 import type { WhisperEngine, WhisperModel } from "../types.js";
 
 const execFileAsync = promisify(execFile);
+
+function resolveModel(model: WhisperModel): string {
+  if (model === "auto") {
+    return recommendWhisperModel(detectPlatform().ram_gb);
+  }
+  return model;
+}
 
 export interface WhisperOptions {
   engine: WhisperEngine;
@@ -29,7 +38,18 @@ async function transcribeWithWhisperCpp(
   model: string,
   modelDir: string,
 ): Promise<AudioResult> {
-  const modelPath = `${modelDir}/ggml-${model}.bin`;
+  const resolved = resolveModel(model as WhisperModel);
+  const modelPath = `${modelDir}/ggml-${resolved}.bin`;
+
+  if (!existsSync(modelPath)) {
+    const downloadUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${resolved}.bin`;
+    throw new Error(
+      `Whisper model not found at ${modelPath}\n\n` +
+      `Download it with:\n` +
+      `  curl -L -o "${modelPath}" "${downloadUrl}"\n\n` +
+      `Or choose a different model with /setup-video-vision`
+    );
+  }
 
   const { stdout } = await execFileAsync("whisper-cli", [
     "--model", modelPath,
