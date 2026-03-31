@@ -1,0 +1,19 @@
+{
+  "name": "claude-video-vision",
+  "description": "Video perception plugin for Claude Code — watch and understand videos with multiple backends",
+  "owner": {
+    "name": "Jordan Vasconcelos",
+    "url": "https://github.com/jordanrendric"
+  },
+  "plugins": [
+    {
+      "name": "claude-video-vision",
+      "description": "Give Claude the ability to watch and understand videos",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Jordan Vasconcelos"
+      }
+    }
+  ]
+}
