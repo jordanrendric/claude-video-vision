@@ -29,8 +29,8 @@ export function registerVideoWatch(server: McpServer): void {
     "Extract frames and process audio from a video file. Returns frames (as base64 images or text descriptions) + transcription + audio analysis for Claude to understand the video content. IMPORTANT: If not configured, tell the user to run /setup-video-vision first.",
     {
       path: z.string().describe("Path to the video file"),
-      fps: z.union([z.number().positive(), z.literal("auto")]).default("auto").describe("Frames per second to extract"),
-      resolution: z.number().min(128).max(2048).optional().describe("Frame width in px (maintains aspect ratio)"),
+      fps: z.union([z.coerce.number().positive(), z.literal("auto")]).default("auto").describe("Frames per second to extract"),
+      resolution: z.coerce.number().min(128).max(2048).optional().describe("Frame width in px (maintains aspect ratio)"),
       frame_mode: z.enum(["images", "descriptions"]).optional().describe("Return frames as base64 images or text descriptions"),
       describer_model: z.enum(["opus", "sonnet", "haiku"]).optional().describe("Model for frame-describer agent"),
       start_time: z.string().optional().describe("Start time (e.g. '00:01:30')"),
