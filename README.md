@@ -18,29 +18,30 @@ A Claude Code plugin that extracts frames via ffmpeg and processes audio via mul
 
 ## Quick Start
 
-### 1. Install
+### 1. Install the plugin
 
-```bash
-# Clone the repo
-git clone https://github.com/jordanrendric/claude-video-vision.git
+Inside Claude Code, run these commands **one at a time**:
 
-# Build the MCP server
-cd claude-video-vision/mcp-server
-npm install && npm run build
+```
+/plugin marketplace add https://github.com/jordanrendric/claude-video-vision
 ```
 
-### 2. Load the plugin
+Then:
+
+```
+/plugin install claude-video-vision
+```
+
+The MCP server will auto-install via `npx` from [npm](https://www.npmjs.com/package/claude-video-vision) on first use — no build step required.
+
+Alternative: local development
 
 ```bash
+git clone https://github.com/jordanrendric/claude-video-vision.git
 claude --plugin-dir /path/to/claude-video-vision
 ```
 
-Or add as a marketplace in Claude Code:
-```
-/plugins → Add Marketplace → paste the local path
-```
-
-### 3. Configure
+### 2. Configure
 
 Inside Claude Code, run the interactive wizard:
 
