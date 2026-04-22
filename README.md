@@ -64,9 +64,9 @@ It will walk you through backend selection, whisper configuration (if local), fr
 
 Just mention a video file — Claude will detect it:
 
-> "analisa esse vídeo pra mim: ~/Downloads/demo.mp4"
+> "analyze this video for me: ~/Downloads/demo.mp4"
 >
-> "dá uma olhada no primeiro segundo de ~/videos/bug-report.mov"
+> "take a look at the first second of ~/videos/bug-report.mov"
 
 Claude adapts parameters automatically:
 - "the first second" → extracts at original fps from `00:00:00` to `00:00:01`

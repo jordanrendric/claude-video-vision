@@ -39,8 +39,6 @@ jobs:
         working-directory: mcp-server
         run: npm test
 
-      - name: Publish to npm
+      - name: Publish to npm (via Trusted Publisher / OIDC)
         working-directory: mcp-server
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
