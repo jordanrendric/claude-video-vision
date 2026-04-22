@@ -1,6 +1,8 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-video-vision",
-  "description": "Video perception plugin for Claude Code — watch and understand videos with multiple backends",
+  "description": "Give Claude the ability to watch and understand videos",
+  "version": "1.0.1",
   "owner": {
     "name": "Jordan Vasconcelos",
     "url": "https://github.com/jordanrendric"
@@ -8,12 +10,24 @@
   "plugins": [
     {
       "name": "claude-video-vision",
-      "description": "Give Claude the ability to watch and understand videos",
-      "version": "1.0.0",
+      "description": "Give Claude the ability to watch and understand videos — extracts frames via ffmpeg and processes audio via Gemini API, local Whisper, or OpenAI API. Multimodal perception layer for Claude Code.",
+      "version": "1.0.1",
       "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/jordanrendric/claude-video-vision",
       "author": {
-        "name": "Jordan Vasconcelos"
-      }
+        "name": "Jordan Vasconcelos",
+        "url": "https://github.com/jordanrendric"
+      },
+      "tags": [
+        "video",
+        "vision",
+        "multimodal",
+        "ffmpeg",
+        "whisper",
+        "gemini",
+        "perception"
+      ]
     }
   ]
 }

@@ -1,13 +1,26 @@
 {
-  "name": "claude-video-vision-mcp",
-  "version": "1.0.0",
+  "name": "claude-video-vision",
+  "version": "1.0.1",
+  "description": "MCP server that gives Claude Code the ability to watch and understand videos — extracts frames via ffmpeg and processes audio via multiple backends",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "claude-video-vision": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -22,8 +35,29 @@
     "@google/genai": "^1.0.0",
     "openai": "^4.80.0"
   },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "mcp-server",
+    "video",
+    "vision",
+    "multimodal",
+    "ffmpeg",
+    "whisper",
+    "gemini"
+  ],
   "author": {
     "name": "Jordan Vasconcelos",
     "url": "https://github.com/jordanrendric"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/jordanrendric/claude-video-vision",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jordanrendric/claude-video-vision.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jordanrendric/claude-video-vision/issues"
   }
 }

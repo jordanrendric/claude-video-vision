@@ -1,6 +1,6 @@
 {
   "claude-video-vision": {
-    "command": "node",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"]
+    "command": "npx",
+    "args": ["-y", "claude-video-vision@latest"]
   }
 }

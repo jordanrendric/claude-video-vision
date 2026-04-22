@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-04-22
+
+### Changed
+
+- MCP server published to npm as [`claude-video-vision`](https://www.npmjs.com/package/claude-video-vision)
+- Plugin `.mcp.json` now invokes the server via `npx -y claude-video-vision@latest` — no local `npm install` or `npm run build` required
+- Added `Release` GitHub workflow: tagging `v*` publishes to npm automatically (with provenance)
+
 ## [1.0.0] - 2026-04-22
 
 ### Added
