@@ -10,8 +10,6 @@
   "repository": "https://github.com/jordanrendric/claude-video-vision",
   "license": "MIT",
   "keywords": ["video", "vision", "multimodal", "ffmpeg", "whisper", "gemini", "perception"],
-  "commands": "./commands/",
-  "agents": "./agents/",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }
