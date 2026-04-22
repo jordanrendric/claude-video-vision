@@ -1,7 +1,7 @@
 {
   "name": "claude-video-vision",
   "description": "Give Claude the ability to watch and understand videos — extracts frames and audio for full video perception",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "Jordan Vasconcelos",
     "url": "https://github.com/jordanrendric"
