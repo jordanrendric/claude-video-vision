@@ -155,7 +155,7 @@ Settings are stored in `~/.claude-video-vision/config.json`:
 
 ## Status
 
-**v0.1.0** — Initial release. Tested on macOS (Apple Silicon) with Local backend (whisper.cpp).
+**v1.0.0** — Initial release. Tested on macOS (Apple Silicon) with Local backend (whisper.cpp).
 
 ## License
 

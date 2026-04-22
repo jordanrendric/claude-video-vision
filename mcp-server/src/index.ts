@@ -7,7 +7,7 @@ import { registerVideoConfigure } from "./tools/video-configure.js";
 
 const server = new McpServer({
   name: "claude-video-vision",
-  version: "0.1.0",
+  version: "1.0.0",
 });
 
 registerVideoWatch(server);
