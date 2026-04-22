@@ -1,5 +1,9 @@
 # claude-video-vision
 
+<p align="center">
+  <img src="./assets/hero.avif" alt="claude-video-vision" width="100%" />
+</p>
+
 Give Claude the ability to **watch and understand videos**.
 
 A Claude Code plugin that extracts frames via ffmpeg and processes audio via multiple backends (Gemini API, local Whisper, or OpenAI API). Claude receives frames as images and audio transcription with timestamps — the plugin is a **perception layer**, not an interpretation layer.
