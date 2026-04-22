@@ -9,7 +9,7 @@
     {
       "name": "claude-video-vision",
       "description": "Give Claude the ability to watch and understand videos",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "source": "./",
       "author": {
         "name": "Jordan Vasconcelos"
