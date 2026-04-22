@@ -1,6 +1,6 @@
 {
   "name": "claude-video-vision",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server that gives Claude Code the ability to watch and understand videos — extracts frames via ffmpeg and processes audio via multiple backends",
   "type": "module",
   "main": "dist/index.js",
