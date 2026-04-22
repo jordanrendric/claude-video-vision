@@ -1,8 +1,7 @@
-# claude-video-vision
-
 <p align="center">
   <img src="./assets/hero.avif" alt="claude-video-vision" width="100%" />
 </p>
+# Claude Code Video Vision
 
 Give Claude the ability to **watch and understand videos**.
 
