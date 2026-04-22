@@ -29,10 +29,10 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.5"
   },
   "optionalDependencies": {
-    "@google/genai": "^1.0.0",
+    "@google/genai": "^1.50.1",
     "openai": "^4.80.0"
   },
   "keywords": [
