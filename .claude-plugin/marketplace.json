@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-video-vision",
   "description": "Give Claude the ability to watch and understand videos",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "owner": {
     "name": "Jordan Vasconcelos",
     "url": "https://github.com/jordanrendric"
@@ -11,7 +11,7 @@
     {
       "name": "claude-video-vision",
       "description": "Give Claude the ability to watch and understand videos — extracts frames via ffmpeg and processes audio via Gemini API, local Whisper, or OpenAI API. Multimodal perception layer for Claude Code.",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "source": "./",
       "category": "productivity",
       "homepage": "https://github.com/jordanrendric/claude-video-vision",
