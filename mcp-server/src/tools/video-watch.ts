@@ -10,6 +10,7 @@ import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
+import { parseHMS, shiftAudioResult } from "../utils/timestamps.js";
 import type { AudioResult, VideoWatchResult } from "../types.js";
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
@@ -73,7 +74,11 @@ export function registerVideoWatch(server: McpServer): void {
       let audioPromise: Promise<AudioResult>;
 
       if (config.backend === "gemini-api") {
-        audioPromise = analyzeWithGeminiApi(params.path);
+        const audioDir = join(workDir, "audio");
+        audioPromise = extractAudio(params.path, audioDir, {
+          startTime: params.start_time,
+          endTime: params.end_time,
+        }).then((wavPath) => analyzeWithGeminiApi(wavPath));
       } else if (config.backend === "openai") {
         const audioDir = join(workDir, "audio");
         audioPromise = extractAudio(params.path, audioDir, {
@@ -97,15 +102,22 @@ export function registerVideoWatch(server: McpServer): void {
         );
       }
 
-      const [frames, audio] = await Promise.all([framesPromise, audioPromise]);
+      const [frames, rawAudio] = await Promise.all([framesPromise, audioPromise]);
 
-      // 5. Build result
+      // 5. Align audio timestamps with the original video timeline.
+      //    Backends return timestamps relative to the cropped audio, but frames
+      //    already carry original-video timestamps via extractFrames. Shift the
+      //    audio result so both timelines match.
+      const offsetSeconds = params.start_time ? parseHMS(params.start_time) : 0;
+      const audio = shiftAudioResult(rawAudio, offsetSeconds);
+
+      // 6. Build result
       const result: VideoWatchResult = { metadata, frames, audio };
 
-      // 6. Cleanup temp dir
+      // 7. Cleanup temp dir
       rmSync(workDir, { recursive: true, force: true });
 
-      // 7. Return as MCP content
+      // 8. Return as MCP content
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
 
       // Metadata + audio as text
