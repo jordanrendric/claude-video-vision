@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import type { AudioResult, TranscriptionSegment } from "../types.js";
+import { formatHMS } from "../utils/timestamps.js";
 
 export async function transcribeWithOpenAI(wavPath: string): Promise<AudioResult> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -24,8 +25,8 @@ export async function transcribeWithOpenAI(wavPath: string): Promise<AudioResult
   });
 
   const transcription: TranscriptionSegment[] = (response.segments || []).map((seg: any) => ({
-    start: formatTime(seg.start),
-    end: formatTime(seg.end),
+    start: formatHMS(seg.start),
+    end: formatHMS(seg.end),
     text: seg.text.trim(),
   }));
 
@@ -35,11 +36,4 @@ export async function transcribeWithOpenAI(wavPath: string): Promise<AudioResult
     audio_tags: [],
     full_analysis: null,
   };
-}
-
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

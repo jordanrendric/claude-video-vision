@@ -3,6 +3,7 @@ import { promisify } from "util";
 import { readFileSync, readdirSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import type { VideoMetadata, Frame } from "../types.js";
+import { formatHMS, parseHMS } from "../utils/timestamps.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -97,22 +98,17 @@ export async function extractFrames(
     .filter((f) => f.startsWith("frame_") && f.endsWith(".jpg"))
     .sort();
 
+  const offsetSeconds = startTime ? parseHMS(startTime) : 0;
+
   return files.map((file, index) => {
     const filePath = join(outputDir, file);
     const imageData = readFileSync(filePath);
     const base64 = imageData.toString("base64");
-    const timestamp = formatTimestamp(index / fps);
+    const timestamp = formatHMS(offsetSeconds + index / fps);
 
     return {
       timestamp,
       image: base64,
     };
   });
-}
-
-function formatTimestamp(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

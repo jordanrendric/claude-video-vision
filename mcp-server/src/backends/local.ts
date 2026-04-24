@@ -3,6 +3,7 @@ import { promisify } from "util";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
+import { formatHMS } from "../utils/timestamps.js";
 import type { AudioResult, TranscriptionSegment, AudioTag } from "../types.js";
 import type { WhisperEngine, WhisperModel } from "../types.js";
 
@@ -96,8 +97,8 @@ function parseWhisperOutput(output: string): AudioResult {
 
     for (const seg of segments) {
       transcription.push({
-        start: formatTime(seg.start ?? seg.from ?? 0),
-        end: formatTime(seg.end ?? seg.to ?? 0),
+        start: formatHMS(seg.start ?? seg.from ?? 0),
+        end: formatHMS(seg.end ?? seg.to ?? 0),
         text: (seg.text || "").trim(),
       });
     }
@@ -106,8 +107,8 @@ function parseWhisperOutput(output: string): AudioResult {
       const tags = parsed.audio_tags || parsed.labels || [];
       for (const tag of tags) {
         audioTags.push({
-          start: formatTime(tag.start ?? 0),
-          end: formatTime(tag.end ?? 0),
+          start: formatHMS(tag.start ?? 0),
+          end: formatHMS(tag.end ?? 0),
           tag: tag.tag || tag.label || tag.name || "unknown",
         });
       }
@@ -124,11 +125,4 @@ function parseWhisperOutput(output: string): AudioResult {
     audio_tags: audioTags,
     full_analysis: null,
   };
-}
-
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
