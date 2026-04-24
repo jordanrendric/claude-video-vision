@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "measure": "tsx scripts/measure-tokens.ts",
+    "test:gemini": "tsx scripts/test-gemini-api.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
