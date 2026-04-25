@@ -43,4 +43,18 @@ describe("config", () => {
     expect(loaded.frame_mode).toBe("images");
     expect(loaded.max_frames).toBe(100);
   });
+
+  it("returns new defaults for enable_index and session_max_age_days", () => {
+    const config = loadConfig(join(TEST_DIR, "config.json"));
+    expect(config.enable_index).toBe(false);
+    expect(config.session_max_age_days).toBe(7);
+  });
+
+  it("preserves enable_index when set", () => {
+    const configPath = join(TEST_DIR, "config.json");
+    writeFileSync(configPath, JSON.stringify({ enable_index: true }));
+    const loaded = loadConfig(configPath);
+    expect(loaded.enable_index).toBe(true);
+    expect(loaded.session_max_age_days).toBe(7);
+  });
 });

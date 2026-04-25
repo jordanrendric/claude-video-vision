@@ -13,6 +13,8 @@ export const defaultConfig: Config = {
   default_fps: "auto",
   max_frames: 100,
   frame_describer_model: "sonnet",
+  enable_index: false,
+  session_max_age_days: 7,
 };
 
 export function loadConfig(configPath: string): Config {

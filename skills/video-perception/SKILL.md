@@ -9,63 +9,80 @@ You have access to video understanding tools via the claude-video-vision MCP ser
 
 ## Available Tools
 
-- `video_watch` — Extract frames + process audio from a video. This is the main tool.
+- `video_analyze` — Analyze video structure with ffmpeg filters (scene changes, silence, motion, etc.). Use this BEFORE extracting frames to plan your strategy.
+- `video_watch` — Extract frames + process audio from a video. Supports variable FPS/resolution per segment.
+- `video_detail` — Drill into specific segments. Separates extraction from viewing — extract many frames, view few at a time.
 - `video_info` — Get video metadata without processing.
-- `video_configure` — Change settings (backend, resolution, fps, etc.).
+- `video_configure` — Change settings (backend, resolution, enable_index, etc.).
 - `video_setup` — Check/install dependencies.
 
-## When to Use
+## Workflow
 
-Detect video references in conversation:
-- User mentions a video file path (any path ending in .mp4, .mov, .avi, .mkv, .webm, .flv, .wmv)
-- User asks to "watch", "analyze", "review", "look at" a video
-- User references video content ("in the video", "the recording shows")
+**IMPORTANT: You MUST follow these steps in order. Do NOT skip step 2.**
 
-## How to Use
+1. Always start with `video_info` to get duration, resolution, and audio presence.
 
-1. First call `video_info` to get metadata (duration, fps, resolution)
-2. Then call `video_watch` with parameters adapted to the user's request
-3. If setup fails, call `video_setup` first
+2. **REQUIRED for videos > 30s:** Call `video_analyze` BEFORE extracting any frames.
+   This is NOT optional — it gives you structural data to make smart extraction decisions.
+   Select filters relevant to the user's question:
 
-## Choosing Parameters — IMPORTANT
+   | User intent | Filters to select |
+   |---|---|
+   | "What happens in this video?" | scene_changes, silence, transcription |
+   | "Find the scene transitions" | scene_changes, black_intervals |
+   | "Are there frozen/stuck parts?" | freeze, blur |
+   | "Is this a talking head or action?" | motion |
+   | "When does the music start?" | silence, loudness |
+   | "Analyze the lighting" | exposure |
+   | "Summarize this lecture" | transcription, scene_changes, silence |
+   | General / unclear intent | scene_changes, silence, transcription |
 
-You MUST adapt `fps`, `start_time`, `end_time`, and `resolution` based on what the user asks. Don't always use defaults.
+   Always include `transcription: true` when the video has audio — the transcription
+   tells you WHERE to look visually.
 
-**fps (frames per second):**
-- `"auto"` — good for general overview (adapts to video duration)
-- Use the video's **original fps** (from `video_info`) when the user wants frame-by-frame detail
-- Use high fps (5-10) when analyzing specific short moments
-- Use low fps (0.1-0.5) for long videos or general summaries
+3. Use the analysis results and transcription to plan your frame extraction strategy:
+   - Low FPS (0.1-0.5) for static or predictable segments
+   - Higher FPS (1-3) only around scene changes, motion peaks, or moments
+     referenced in speech ("look at this", "as you can see", "let me show you")
+   - Never exceed the minimum FPS needed for the task
+   - Prefer fewer segments at lower FPS — you can always drill deeper
 
-**start_time / end_time:**
-- Use these whenever the user refers to a specific part of the video
-- "the first second" → `start_time: "00:00:00"`, `end_time: "00:00:01"`, `fps: 30` (or original fps)
-- "around the 2 minute mark" → `start_time: "00:01:50"`, `end_time: "00:02:10"`
-- "the ending" → calculate from video duration
+4. Call `video_watch` to extract frames:
+   - For **short videos (< 2 minutes):** Use `fps: "auto"` without `view_sample` — short videos need full coverage to avoid missing brief moments. The auto FPS already adapts to duration.
+   - For **long videos (> 2 minutes):** Use `segments` based on analysis data with variable FPS, and `view_sample` to limit initial frame count. You can always drill deeper with `video_detail`.
 
-**resolution:**
-- 256-512 for quick scans
-- 512-768 for normal analysis
-- 1024 when the user needs to read text on screen or see fine details
+5. Use `video_detail` to drill into specific moments:
+   - Start with 3-5 second windows around points of interest
+   - Use `view_sample: 3` to preview (first, middle, last frame)
+   - Then request specific timestamps with `view` if you need more detail
+   - Expand the window only if the initial view is insufficient
+   - Treat frame viewing like a binary search — narrow down to what matters
+   - Never view all extracted frames at once
 
-**Examples of parameter adaptation:**
+6. When the user asks follow-up questions about the same video, consult
+   the manifest already in your context. Do not re-extract frames you
+   already have at the same resolution. Do not re-request frames you
+   already have in context.
 
-| User says | fps | start/end | resolution |
-|-----------|-----|-----------|------------|
-| "what's in this video?" | auto | - | 512 |
-| "focus on the first second" | original (e.g. 30) | 00:00:00 - 00:00:01 | 512 |
-| "extract the first 30 frames" | original | 00:00:00 - 00:00:01 | 512 |
-| "what text is on screen at 1:30?" | 2 | 00:01:28 - 00:01:32 | 1024 |
-| "summarize this 1 hour lecture" | 0.1 | - | 256 |
-| "what happens right before the end?" | 2 | (duration-10s) - (duration) | 512 |
+## Parameter Guide
+
+**fps:** `"auto"` for general overview. Use the video's original fps (from `video_info`) for frame-by-frame detail. Use 5-10 for analyzing specific short moments. Use 0.1-0.5 for long videos.
+
+**resolution:** 256-512 for quick scans. 512-768 for normal analysis. 1024+ when reading on-screen text or fine details.
+
+**segments:** Use when you have analysis data. Each segment can have its own fps and resolution. Overrides global fps/start_time/end_time.
+
+**view_sample:** Returns N evenly spaced frames from the extracted set. Use this to avoid flooding context with too many images.
+
+**skip_audio:** Set to true when you only need visual analysis.
 
 ## Working with Results
 
 You receive:
+- **Manifest** (when enable_index is on) — index of all cached frames by resolution and timestamp. Use this to avoid redundant requests.
 - **Frames** as images — look at them to understand what's happening visually
 - **Audio transcription** with timestamps — read the speech content
 - **Audio tags** — non-speech events (music, sounds, etc.)
+- **Analysis data** — scene changes, silence intervals, motion levels, etc.
 
-Combine all sources to form a complete understanding. The frames and audio complement each other — visual context helps interpret speech and vice versa.
-
-**Iterative analysis:** If the first pass didn't capture enough detail, call `video_watch` again with adjusted parameters (higher fps, different time range, higher resolution). You can zoom into specific sections.
+Combine all sources to form a complete understanding. Use analysis + transcription to guide where you look visually. The analysis tells you WHEN things happen; the frames tell you WHAT happens.

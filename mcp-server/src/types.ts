@@ -1,4 +1,4 @@
-export type Backend = "gemini-api" | "local" | "openai" | "unconfigured";
+export type Backend = "gemini-api" | "local" | "openai" | "unconfigured" | "none";
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
@@ -14,6 +14,8 @@ export interface Config {
   default_fps: number | "auto";
   max_frames: number;
   frame_describer_model: DescriberModel;
+  enable_index: boolean;
+  session_max_age_days: number;
 }
 
 export interface VideoMetadata {
@@ -57,4 +59,64 @@ export interface VideoWatchResult {
   metadata: VideoMetadata;
   frames: Frame[];
   audio: AudioResult;
+}
+
+export interface AnalysisFilters {
+  scene_changes: boolean;
+  black_intervals: boolean;
+  silence: boolean;
+  freeze: boolean;
+  motion: boolean;
+  blur: boolean;
+  exposure: boolean;
+  loudness: boolean;
+  transcription: boolean;
+}
+
+export interface SceneChange {
+  time: string;
+  score: number;
+}
+
+export interface Interval {
+  start: string;
+  end: string;
+  duration: number;
+}
+
+export interface FrameStats {
+  timestamp: string;
+  si?: number;
+  ti?: number;
+  blur?: number;
+  brightness?: number;
+  saturation?: number;
+}
+
+export interface VideoAnalysis {
+  scenes: SceneChange[];
+  black_intervals: Interval[];
+  silence_intervals: Interval[];
+  freeze_intervals: Interval[];
+  frame_stats: FrameStats[];
+  loudness_summary?: { mean_lufs: number; range_lu: number };
+  transcription?: TranscriptionSegment[];
+  content_profile: string;
+}
+
+export interface SessionManifest {
+  video_hash: string;
+  video_path: string;
+  created_at: string;
+  resolutions: Record<string, {
+    frames: Array<{ timestamp: string; file: string }>;
+  }>;
+  analysis?: VideoAnalysis;
+}
+
+export interface Segment {
+  start: string;
+  end: string;
+  fps: number;
+  resolution?: number;
 }
