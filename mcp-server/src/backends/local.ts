@@ -1,7 +1,7 @@
 import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import { existsSync, mkdirSync, rmSync } from "fs";
-import { dirname, join } from "path";
+import { basename, dirname, join } from "path";
 import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 import { formatHMS } from "../utils/timestamps.js";
 import type { AudioResult, TranscriptionSegment, AudioTag } from "../types.js";
@@ -94,9 +94,11 @@ async function transcribeWithWhisperPython(
   ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 });
 
   // Best-effort cleanup of the on-disk JSON; we already have what we
-  // need on stdout via parseWhisperOutput.
+  // need on stdout via parseWhisperOutput. The CLI derives the output
+  // filename from the input wav, so derive it the same way.
   try {
-    rmSync(join(outputDir, "audio.json"), { force: true });
+    const jsonName = basename(wavPath, ".wav") + ".json";
+    rmSync(join(outputDir, jsonName), { force: true });
   } catch { /* ignore */ }
 
   return parseWhisperOutput(stdout);
