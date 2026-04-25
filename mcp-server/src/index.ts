@@ -14,7 +14,7 @@ import { cleanExpiredSessions } from "./session/manager.js";
 
 const server = new McpServer({
   name: "claude-video-vision",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 registerVideoWatch(server);
