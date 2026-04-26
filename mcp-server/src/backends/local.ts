@@ -1,8 +1,8 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { existsSync, mkdirSync, createReadStream } from "fs";
+import { existsSync, mkdirSync, rmSync, createReadStream } from "fs";
 import { createHash } from "crypto";
-import { dirname } from "path";
+import { basename, dirname, join } from "path";
 import { pipeline } from "stream/promises";
 import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 import { formatHMS } from "../utils/timestamps.js";
@@ -110,12 +110,29 @@ async function transcribeWithWhisperPython(
 ): Promise<AudioResult> {
   const command = whisperAt ? "whisper-at" : "whisper";
 
+  // openai-whisper Python CLI does not accept "auto" for --language;
+  // omitting the flag triggers the built-in language auto-detection from
+  // the first 30 seconds of audio, which is the behavior we want.
+  //
+  // We also pin --output_dir to the same scratch directory as the wav
+  // input so whisper's side-effect JSON file lands in our temp dir and
+  // gets reaped with it, instead of polluting the user's CWD.
+  const outputDir = dirname(wavPath);
+
   const { stdout } = await execFileAsync(command, [
     wavPath,
     "--model", model,
-    "--language", "auto",
     "--output_format", "json",
+    "--output_dir", outputDir,
   ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 });
+
+  // Best-effort cleanup of the on-disk JSON; we already have what we
+  // need on stdout via parseWhisperOutput. The CLI derives the output
+  // filename from the input wav, so derive it the same way.
+  try {
+    const jsonName = basename(wavPath, ".wav") + ".json";
+    rmSync(join(outputDir, jsonName), { force: true });
+  } catch { /* ignore */ }
 
   return parseWhisperOutput(stdout);
 }
