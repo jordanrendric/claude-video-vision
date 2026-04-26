@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { join } from "path";
 import { homedir } from "os";
+import { rmSync, existsSync } from "fs";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig, saveConfig } from "../config.js";
 
@@ -20,25 +21,34 @@ export function registerVideoConfigure(server: McpServer): void {
       default_fps: z.union([z.number().positive(), z.literal("auto")]).optional(),
       max_frames: z.number().min(1).max(1000).optional(),
       frame_describer_model: z.enum(["opus", "sonnet", "haiku"]).optional(),
+      enable_index: z.boolean().optional(),
+      session_max_age_days: z.number().min(1).optional(),
+      clear_sessions: z.boolean().optional(),
     },
     async (params) => {
+      if (params.clear_sessions) {
+        const sessionsDir = join(homedir(), ".claude-video-vision", "sessions");
+        if (existsSync(sessionsDir)) {
+          rmSync(sessionsDir, { recursive: true, force: true });
+        }
+      }
+
       const current = loadConfig(CONFIG_PATH);
       const updated = { ...current };
 
       for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined) {
+        if (value !== undefined && key !== "clear_sessions") {
           (updated as any)[key] = value;
         }
       }
 
       saveConfig(CONFIG_PATH, updated);
 
-      return {
-        content: [{
-          type: "text",
-          text: `Configuration saved to ${CONFIG_PATH}:\n${JSON.stringify(updated, null, 2)}`,
-        }],
-      };
+      let responseText = `Configuration saved to ${CONFIG_PATH}:\n${JSON.stringify(updated, null, 2)}`;
+      if (params.clear_sessions) {
+        responseText += "\n\nAll sessions have been cleared.";
+      }
+      return { content: [{ type: "text", text: responseText }] };
     },
   );
 }

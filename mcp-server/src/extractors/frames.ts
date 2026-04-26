@@ -2,7 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { readFileSync, readdirSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import type { VideoMetadata, Frame } from "../types.js";
+import type { VideoMetadata, Frame, Segment } from "../types.js";
 import { formatHMS, parseHMS } from "../utils/timestamps.js";
 
 const execFileAsync = promisify(execFile);
@@ -111,4 +111,67 @@ export async function extractFrames(
       image: base64,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Segment-based frame extraction
+// ---------------------------------------------------------------------------
+
+export interface SegmentFrame extends Frame {
+  resolution: number;
+}
+
+/**
+ * Generates HH:MM:SS timestamp strings for every sample point within a
+ * segment according to the segment's fps setting.
+ *
+ * The range is [start, end) — the end boundary is exclusive so that a segment
+ * ending exactly at the next segment's start time never overlaps.
+ */
+export function generateTimestampsForSegment(segment: Segment): string[] {
+  const startSec = parseHMS(segment.start);
+  const endSec = parseHMS(segment.end);
+  const interval = 1 / segment.fps;
+  const timestamps: string[] = [];
+
+  for (let t = startSec; t < endSec; t += interval) {
+    timestamps.push(formatHMS(Math.round(t)));
+  }
+
+  return timestamps;
+}
+
+/**
+ * Extracts frames for an ordered list of segments, each potentially at a
+ * different resolution and fps.  Frames from each segment are written into a
+ * sub-directory named after their resolution so they never collide.
+ */
+export async function extractFramesBySegments(
+  videoPath: string,
+  segments: Segment[],
+  baseOutputDir: string,
+): Promise<SegmentFrame[]> {
+  const allFrames: SegmentFrame[] = [];
+
+  for (const segment of segments) {
+    const resolution = segment.resolution ?? 512;
+    const resDir = join(baseOutputDir, String(resolution));
+
+    if (!existsSync(resDir)) mkdirSync(resDir, { recursive: true });
+
+    const frames = await extractFrames(videoPath, {
+      fps: segment.fps,
+      resolution,
+      outputDir: resDir,
+      startTime: segment.start,
+      endTime: segment.end,
+      maxFrames: 1000,
+    });
+
+    for (const frame of frames) {
+      allFrames.push({ ...frame, resolution });
+    }
+  }
+
+  return allFrames;
 }

@@ -4,12 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.1] - 2026-04-26
 
 ### Fixed
 
 - **openai-whisper Python backend:** `video_watch` no longer crashes with `argument --language: invalid choice: 'auto'` on every call. The openai-whisper CLI accepts only explicit ISO codes for `--language` (or omission for the built-in 30-second auto-detection). The `--language auto` argument has been removed from the Python branch; the `whisper.cpp` branch is unchanged because cpp does accept `auto`.
 - **Stray `audio.json` in user CWD:** the openai-whisper CLI writes its JSON output to the working directory by default. The Python backend now passes `--output_dir` pointing at the same scratch directory as the input wav, and best-effort removes the file after parsing stdout, so users no longer find an orphan `audio.json` next to their project files after every `video_watch` call.
+
+## [1.2.0] - 2026-04-25
+
+### Added
+
+- **New tool: `video_analyze`** — Runs ffmpeg analytical filters (scdet, blackdetect, silencedetect, freezedetect, siti, blurdetect, signalstats, ebur128) in a single pass. Claude selects which filters to use based on the user's question. Optional audio transcription via configured backend. Returns structured JSON with scene changes, silence intervals, motion profile, and content classification.
+- **New tool: `video_detail`** — Drill-down into specific video segments with variable FPS/resolution. Separates extraction from viewing: extract many frames to disk, view only a subset. Supports `view_sample` for evenly spaced frames and `view` for specific timestamps.
+- **Session system** (`enable_index` config) — Persistent sessions at `~/.claude-video-vision/sessions/{video-hash}/`. Manifest tracks frames by resolution, deduplicates across calls. Auto-cleanup of expired sessions on server startup via `session_max_age_days`.
+- **Segment-based extraction** — `video_watch` and `video_detail` now accept a `segments` param for variable FPS/resolution per time range, enabling smart extraction driven by analysis data.
+- **`view_sample` param** on `video_watch` — Returns N evenly spaced frames instead of all, reducing context usage.
+- **`clear_sessions` action** on `video_configure` — Deletes all cached sessions.
+
+### Changed
+
+- **Skill rewrite (video-perception + watch-video):** New analyze-first workflow. For videos > 30s, Claude calls `video_analyze` to get structural data + transcription before extracting frames. Short videos (< 2min) use full auto FPS for complete coverage.
+- **`video_configure`** now accepts `enable_index` and `session_max_age_days` params.
+
+### Fixed
+
+- **Command injection in whisper model download:** Replaced shell-interpolated curl invocation with `execFile` array arguments, preventing injection via crafted model paths.
+- **Model integrity verification:** Added streaming SHA-256 checksum verification for all 12 whisper model downloads (verified against HuggingFace Git LFS pointers, including `large-v3-turbo`). Uses `createReadStream` + `pipeline` to avoid OOM on large models.
+- **Input validation:** Added `validateVideoPath()` (shared module) for path resolution and file type checks. Added `HMS_REGEX` validation on `start_time`/`end_time` params to prevent ffmpeg argument injection.
+- **`skip_audio` flag and `has_audio` detection:** `video_watch` now gracefully skips audio extraction when the video has no audio stream or `skip_audio: true`.
+- **ffmpeg filter output parsing:** Fixed `ametadata` vs `metadata` filter mismatch in audio chain. Fixed `parseSitiOutput` regex to match actual ffmpeg SITI Summary format. Always appends metadata sink to video filter chain for scdet capture.
+
+### Security
+
+- Inspired by [@urielka](https://github.com/urielka)'s [fork](https://github.com/urielka/claude-video-vision), which identified the shell injection fix and proposed model checksum verification. Our implementation corrects the checksum values for `base.en` and `large-v3`, uses streaming hashing to avoid OOM, and adds `large-v3-turbo` coverage. Thanks for the contribution!
+
+### Tests
+
+- 50 new unit tests (types, config, session manager, session manifest, analyzers, segment extraction). Total suite: 91/91 passing.
 
 ## [1.1.0] - 2026-04-23
 
