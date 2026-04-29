@@ -37,7 +37,7 @@
   },
   "optionalDependencies": {
     "@google/genai": "^1.50.1",
-    "openai": "^4.80.0"
+    "openai": "^6.35.0"
   },
   "keywords": [
     "claude",
