@@ -9,7 +9,6 @@ import { formatHMS } from "../utils/timestamps.js";
 export interface AnalysisCommandResult {
   args: string[];
   videoMetaFile: string;
-  audioMetaFile: string;
 }
 
 /**
@@ -25,7 +24,6 @@ export function buildAnalysisCommand(
   workDir: string,
 ): AnalysisCommandResult | null {
   const videoMetaFile = join(workDir, "video_meta.txt");
-  const audioMetaFile = join(workDir, "audio_meta.txt");
 
   // Video filter chain
   const videoFilters: string[] = [];
@@ -66,9 +64,7 @@ export function buildAnalysisCommand(
     audioFilters.push("ebur128=metadata=1");
   }
 
-  if (audioFilters.length > 0) {
-    audioFilters.push(`ametadata=mode=print:file=${audioMetaFile}`);
-  }
+  // Do not append `ametadata=mode=print:file=...` — it makes silencedetect's stderr events vanish.
 
   const hasVideoFilters = videoFilters.length > 0;
   const hasAudioFilters = audioFilters.length > 0;
@@ -91,7 +87,7 @@ export function buildAnalysisCommand(
   // Discard output — we only care about stderr / metadata files
   args.push("-f", "null", "-");
 
-  return { args, videoMetaFile, audioMetaFile };
+  return { args, videoMetaFile };
 }
 
 // ---------------------------------------------------------------------------
