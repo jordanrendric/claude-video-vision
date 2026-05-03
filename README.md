@@ -11,6 +11,7 @@ A Claude Code plugin that extracts frames via ffmpeg and processes audio via mul
 ## Features
 
 - **Multimodal perception** — Claude sees video frames directly and reads audio transcriptions with timestamps
+- **YouTube URL support** — Pass a YouTube URL directly; the MCP server downloads it with `yt-dlp`, preserving source metadata and captions for context
 - **Flexible backends** — Choose between cloud APIs or fully local processing
 - **Adaptive extraction** — Claude adjusts fps, time range, and resolution based on your question
 - **Auto-installation** — Whisper models download automatically on first use
@@ -58,15 +59,18 @@ It will walk you through backend selection, whisper configuration (if local), fr
 ```
 /watch-video path/to/video.mp4
 /watch-video tutorial.mp4 "what language is used in this tutorial?"
+/watch-video https://www.youtube.com/watch?v=... "summarize this video"
 ```
 
 ### Conversational
 
-Just mention a video file — Claude will detect it:
+Just mention a video file or YouTube URL — Claude will detect it:
 
 > "analyze this video for me: ~/Downloads/demo.mp4"
 >
 > "take a look at the first second of ~/videos/bug-report.mov"
+>
+> "summarize this YouTube Short: https://www.youtube.com/shorts/..."
 
 Claude adapts parameters automatically:
 - "the first second" → extracts at original fps from `00:00:00` to `00:00:01`
@@ -119,6 +123,7 @@ Claude adapts parameters automatically:
 
 - **Node.js 20+** (for the MCP server)
 - **ffmpeg** (auto-detected, install instructions provided by setup wizard)
+- **yt-dlp** (optional, required only for YouTube URLs; `brew install yt-dlp` on macOS)
 - **Backend-specific**:
   - Gemini API: free API key from [ai.google.dev](https://ai.google.dev/gemini-api/docs/api-key)
   - Local: `brew install whisper-cpp` (macOS) or equivalent
@@ -126,9 +131,11 @@ Claude adapts parameters automatically:
 
 ## MCP Tools
 
-The plugin exposes 4 MCP tools:
+The plugin exposes 6 MCP tools:
 
 - `video_watch` — Extract frames + process audio (main tool)
+- `video_analyze` — Analyze video structure with ffmpeg filters before extraction
+- `video_detail` — Drill into specific cached or newly extracted moments
 - `video_info` — Get video metadata without processing
 - `video_configure` — Change settings
 - `video_setup` — Check and guide dependency installation
@@ -157,6 +164,16 @@ Settings are stored in `~/.claude-video-vision/config.json`:
 ```
 
 **Whisper models** auto-download to `~/.claude-video-vision/models/` on first use. Available: `tiny`, `base`, `small`, `medium`, `large-v3-turbo`, `large-v3`, `auto` (picks best for your RAM).
+
+## YouTube Transcripts
+
+For YouTube URLs, the server uses this transcript order:
+
+1. Manual YouTube subtitles when an English track is available.
+2. YouTube automatic captions when manual subtitles are not available.
+3. The configured audio backend when captions are missing, empty, or cover too little of a longer video.
+
+Audio results label provenance with `transcription_source`, for example `youtube_subtitles` or `youtube_auto_captions`, so Claude can treat manual subtitles as stronger evidence than auto-captions.
 
 ## Status
 

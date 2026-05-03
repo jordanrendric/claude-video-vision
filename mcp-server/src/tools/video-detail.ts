@@ -5,7 +5,7 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../config.js";
-import { validateVideoPath } from "../utils/validation.js";
+import { resolveVideoInputDetailed } from "../utils/video-source.js";
 import { extractFramesBySegments } from "../extractors/frames.js";
 import type { SegmentFrame } from "../extractors/frames.js";
 import {
@@ -138,9 +138,9 @@ function lookupTimestampsInManifest(
 export function registerVideoDetail(server: McpServer): void {
   server.tool(
     "video_detail",
-    "Drill into specific segments of a video. Extracts frames at variable FPS/resolution per segment. Separates extraction from viewing: use segments to extract, view/view_sample to control which frames are returned as images. When enable_index is on, frames are cached and deduplicated across calls.",
+    "Drill into specific segments of a local video file or YouTube URL. Extracts frames at variable FPS/resolution per segment. Separates extraction from viewing: use segments to extract, view/view_sample to control which frames are returned as images. When enable_index is on, frames are cached and deduplicated across calls.",
     {
-      path: z.string().describe("Absolute or relative path to the video file"),
+      path: z.string().describe("Absolute/relative path to the video file, or a YouTube URL"),
       segments: z
         .array(
           z.object({
@@ -179,7 +179,8 @@ export function registerVideoDetail(server: McpServer): void {
       // Setup
       // ------------------------------------------------------------------
       const config = loadConfig(CONFIG_PATH);
-      const safePath = validateVideoPath(params.path);
+      const resolved = await resolveVideoInputDetailed(params.path);
+      const safePath = resolved.path;
 
       let sessionDir: string | null = null;
       let manifest: SessionManifest | null = null;
@@ -289,6 +290,13 @@ export function registerVideoDetail(server: McpServer): void {
         | { type: "text"; text: string }
         | { type: "image"; data: string; mimeType: "image/jpeg" }
       > = [];
+
+      if (resolved.source) {
+        content.push({
+          type: "text",
+          text: `## Source\n${JSON.stringify(resolved.source, null, 2)}`,
+        });
+      }
 
       // 1. Manifest summary (if session is active)
       if (manifest && videoHash) {

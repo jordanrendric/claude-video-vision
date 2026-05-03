@@ -11,7 +11,11 @@ import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
 import { parseHMS, shiftAudioResult } from "../utils/timestamps.js";
-import { validateVideoPath } from "../utils/validation.js";
+import {
+  buildCaptionAudioResult,
+  getCaptionFallbackReason,
+  resolveVideoInputDetailed,
+} from "../utils/video-source.js";
 import { getSessionDir, loadManifest, saveManifest, computeVideoHash } from "../session/manager.js";
 import { createManifest, mergeFrames, sampleFrameIndices } from "../session/manifest.js";
 import type { AudioResult, VideoWatchResult, Frame, Segment, SessionManifest } from "../types.js";
@@ -34,9 +38,9 @@ Available backends:
 export function registerVideoWatch(server: McpServer): void {
   server.tool(
     "video_watch",
-    "Extract frames and process audio from a video file. Returns frames (as base64 images or text descriptions) + transcription + audio analysis for Claude to understand the video content. IMPORTANT: For videos longer than 30 seconds, call video_analyze FIRST to get structural data (scene changes, silence, transcription) before calling this tool — use that data to set smart segments with variable FPS. If not configured, tell the user to run /setup-video-vision first.",
+    "Extract frames and process audio from a local video file or YouTube URL. Returns frames (as base64 images or text descriptions) + transcription + audio analysis for Claude to understand the video content. IMPORTANT: For videos longer than 30 seconds, call video_analyze FIRST to get structural data (scene changes, silence, transcription) before calling this tool — use that data to set smart segments with variable FPS.",
     {
-      path: z.string().describe("Absolute or relative path to the video file"),
+      path: z.string().describe("Absolute/relative path to the video file, or a YouTube URL"),
       fps: z.union([z.coerce.number().positive(), z.literal("auto")]).default("auto").describe("Frames per second to extract"),
       resolution: z.coerce.number().min(128).max(2048).optional().describe("Frame width in px (maintains aspect ratio)"),
       frame_mode: z.enum(["images", "descriptions"]).optional().describe("Return frames as base64 images or text descriptions"),
@@ -55,13 +59,10 @@ export function registerVideoWatch(server: McpServer): void {
     async (params) => {
       const config = loadConfig(CONFIG_PATH);
 
-      if (config.backend === "unconfigured" && !params.skip_audio) {
-        return { content: [{ type: "text", text: UNCONFIGURED_MESSAGE }] };
-      }
-
       const resolution = params.resolution || config.frame_resolution;
       const frameMode = params.frame_mode || config.frame_mode;
-      const safePath = validateVideoPath(params.path);
+      const resolved = await resolveVideoInputDetailed(params.path);
+      const safePath = resolved.path;
 
       // Session support
       const useSession = config.enable_index;
@@ -75,6 +76,13 @@ export function registerVideoWatch(server: McpServer): void {
 
       // 1. Get metadata
       const metadata = await getVideoMetadata(safePath);
+      const captionFallbackReason = resolved.source?.type === "youtube"
+        ? getCaptionFallbackReason(resolved.captions, metadata.duration_seconds)
+        : null;
+
+      if (config.backend === "unconfigured" && !params.skip_audio && captionFallbackReason !== null) {
+        return { content: [{ type: "text", text: UNCONFIGURED_MESSAGE }] };
+      }
 
       // 2. Calculate fps
       const fps = params.fps === "auto"
@@ -121,6 +129,13 @@ export function registerVideoWatch(server: McpServer): void {
 
       if (params.skip_audio || !metadata.has_audio) {
         audioPromise = Promise.resolve({ backend: "none" as const, transcription: [], audio_tags: [], full_analysis: null });
+      } else if (captionFallbackReason === null && resolved.captions) {
+        audioPromise = Promise.resolve(
+          buildCaptionAudioResult(resolved.captions, {
+            startTime: params.start_time,
+            endTime: params.end_time,
+          }),
+        );
       } else if (config.backend === "gemini-api") {
         const audioDir = join(workDir, "audio");
         audioPromise = extractAudio(safePath, audioDir, {
@@ -152,6 +167,10 @@ export function registerVideoWatch(server: McpServer): void {
 
       let [frames, rawAudio] = await Promise.all([framesPromise, audioPromise]);
 
+      if (captionFallbackReason !== null && rawAudio.backend !== "youtube-captions" && rawAudio.backend !== "none") {
+        rawAudio = { ...rawAudio, transcription_fallback_reason: captionFallbackReason };
+      }
+
       // 5. Align audio timestamps with the original video timeline.
       //    Backends return timestamps relative to the cropped audio, but frames
       //    already carry original-video timestamps via extractFrames. Shift the
@@ -180,6 +199,10 @@ export function registerVideoWatch(server: McpServer): void {
 
       // 10. Return as MCP content
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
+
+      if (resolved.source) {
+        content.push({ type: "text", text: `## Source\n${JSON.stringify(resolved.source, null, 2)}` });
+      }
 
       // Manifest summary (only when session is active)
       if (manifest) {

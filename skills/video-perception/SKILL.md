@@ -1,6 +1,6 @@
 ---
 name: video-perception
-description: Use when the user mentions a video file (.mp4, .mov, .avi, .mkv, .webm), asks to watch/analyze/review a video, or references video content in conversation
+description: Use when the user mentions a video file (.mp4, .mov, .avi, .mkv, .webm), a YouTube URL, asks to watch/analyze/review a video, or references video content in conversation
 ---
 
 # Video Perception
@@ -21,6 +21,10 @@ You have access to video understanding tools via the claude-video-vision MCP ser
 **IMPORTANT: You MUST follow these steps in order. Do NOT skip step 2.**
 
 1. Always start with `video_info` to get duration, resolution, and audio presence.
+   If the user gives a YouTube URL, pass the URL directly as `path`.
+   The MCP server downloads it with `yt-dlp`, prefers YouTube subtitles/auto-captions
+   for transcription, and falls back to the configured audio backend only when
+   captions are missing, empty, or suspiciously incomplete.
 
 2. **REQUIRED for videos > 30s:** Call `video_analyze` BEFORE extracting any frames.
    This is NOT optional — it gives you structural data to make smart extraction decisions.
@@ -75,6 +79,10 @@ You have access to video understanding tools via the claude-video-vision MCP ser
 **view_sample:** Returns N evenly spaced frames from the extracted set. Use this to avoid flooding context with too many images.
 
 **skip_audio:** Set to true when you only need visual analysis.
+
+**YouTube URLs:** Pass supported YouTube URLs directly as `path`. Treat
+`transcription_source: "youtube_subtitles"` as stronger than
+`youtube_auto_captions`; auto-captions can still have recognition errors.
 
 ## Working with Results
 

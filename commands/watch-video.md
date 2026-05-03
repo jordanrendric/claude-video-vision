@@ -1,18 +1,21 @@
 ---
-description: "Watch and analyze a video file — extracts frames and audio for understanding"
-argument-hint: "path/to/video.mp4 [optional prompt or question about the video]"
+description: "Watch and analyze a video file or YouTube URL — extracts frames and audio for understanding"
+argument-hint: "path/to/video.mp4 or YouTube URL [optional prompt or question about the video]"
 ---
 
 # Watch Video
 
 Parse the user's input to extract:
 1. **Video path** — the file path (required)
+   - YouTube URLs are also supported; pass the URL directly as `path`
 2. **Prompt** — any question or instruction about the video (optional)
 3. **Flags** — `--fps <number>`, `--resolution <number>` (optional)
 
 Then follow this workflow **in order — do NOT skip step 2**:
 
-1. Call `video_info` on the path to verify it's a valid video and get duration.
+1. Call `video_info` on the path/URL to verify it's a valid video and get duration.
+   For YouTube URLs, the MCP server downloads the video with `yt-dlp` and uses
+   YouTube subtitles/auto-captions before falling back to the configured audio backend.
 
 2. **REQUIRED for videos > 30s:** Call `video_analyze` BEFORE `video_watch`. This is NOT optional.
    Use filters: `scene_changes: true, silence: true, transcription: true` at minimum.

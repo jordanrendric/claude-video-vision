@@ -111,6 +111,7 @@ Tell the user:
 > Let me verify your setup...
 
 Call `video_setup` with the configured backend and options. Show the results.
+Mention that `yt-dlp` is optional but required for YouTube URL support.
 
 If dependencies are missing, show the installation commands and ask:
 > Want me to install these for you?

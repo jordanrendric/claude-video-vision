@@ -7,7 +7,11 @@ import { mkdirSync, rmSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../config.js";
-import { validateVideoPath } from "../utils/validation.js";
+import {
+  buildCaptionAudioResult,
+  getCaptionFallbackReason,
+  resolveVideoInputDetailed,
+} from "../utils/video-source.js";
 import { getVideoMetadata } from "../extractors/frames.js";
 import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
@@ -43,9 +47,9 @@ const SESSIONS_DIR = join(homedir(), ".claude-video-vision", "sessions");
 export function registerVideoAnalyze(server: McpServer): void {
   server.tool(
     "video_analyze",
-    "Analyze video structure using ffmpeg filters. Returns scene changes, silence intervals, motion levels, and more. Use this before video_watch to plan which segments need detailed frame extraction. Does not extract frames.",
+    "Analyze local video file or YouTube URL structure using ffmpeg filters. Returns scene changes, silence intervals, motion levels, and more. Use this before video_watch to plan which segments need detailed frame extraction. Does not extract frames.",
     {
-      path: z.string().describe("Absolute or relative path to the video file"),
+      path: z.string().describe("Absolute/relative path to the video file, or a YouTube URL"),
       filters: z.object({
         scene_changes: z
           .boolean()
@@ -87,7 +91,8 @@ export function registerVideoAnalyze(server: McpServer): void {
     },
     async (params) => {
       const config = loadConfig(CONFIG_PATH);
-      const safePath = validateVideoPath(params.path);
+      const resolved = await resolveVideoInputDetailed(params.path);
+      const safePath = resolved.path;
       const filters = params.filters as AnalysisFilters;
 
       // 1. Get video metadata
@@ -209,8 +214,13 @@ export function registerVideoAnalyze(server: McpServer): void {
         // 7. Handle transcription separately (not an ffmpeg filter)
         if (filters.transcription && metadata.has_audio) {
           let audioResult: AudioResult;
+          const captionFallbackReason = resolved.source?.type === "youtube"
+            ? getCaptionFallbackReason(resolved.captions, metadata.duration_seconds)
+            : null;
 
-          if (config.backend === "gemini-api") {
+          if (captionFallbackReason === null && resolved.captions) {
+            audioResult = buildCaptionAudioResult(resolved.captions);
+          } else if (config.backend === "gemini-api") {
             const audioDir = join(workDir, "audio");
             const wavPath = await extractAudio(safePath, audioDir, {});
             audioResult = await analyzeWithGeminiApi(wavPath);
@@ -236,6 +246,10 @@ export function registerVideoAnalyze(server: McpServer): void {
               audio_tags: [],
               full_analysis: null,
             };
+          }
+
+          if (captionFallbackReason !== null && audioResult.backend !== "youtube-captions" && audioResult.backend !== "none") {
+            audioResult = { ...audioResult, transcription_fallback_reason: captionFallbackReason };
           }
 
           analysis.transcription = audioResult.transcription;
@@ -266,6 +280,7 @@ export function registerVideoAnalyze(server: McpServer): void {
 
       // 11. Return JSON as text content
       const output = {
+        ...(resolved.source ? { source: resolved.source } : {}),
         metadata,
         analysis,
       };

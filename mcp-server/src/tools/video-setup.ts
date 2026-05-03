@@ -1,12 +1,12 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { checkDependencies } from "../utils/installer.js";
-import { detectPlatform, recommendWhisperModel } from "../utils/platform.js";
+import { checkCommand, detectPlatform, recommendWhisperModel } from "../utils/platform.js";
 
 export function registerVideoSetup(server: McpServer): void {
   server.tool(
     "video_setup",
-    "Check and install dependencies for video perception (ffmpeg, whisper, gemini api). Always asks permission before installing.",
+    "Check dependencies for video perception (ffmpeg, whisper, gemini api, optional yt-dlp for YouTube URLs).",
     {
       backend: z.enum(["gemini-api", "local", "openai"]).describe("Audio processing backend"),
       whisper_engine: z.enum(["cpp", "python"]).default("cpp"),
@@ -15,6 +15,7 @@ export function registerVideoSetup(server: McpServer): void {
     async ({ backend, whisper_engine, whisper_model }) => {
       const platform = detectPlatform();
       const result = await checkDependencies(backend, whisper_engine);
+      const hasYtDlp = await checkCommand("yt-dlp");
 
       const resolvedModel = whisper_model === "auto"
         ? recommendWhisperModel(platform.ram_gb)
@@ -30,6 +31,15 @@ export function registerVideoSetup(server: McpServer): void {
       if (backend === "local") {
         report += `- Whisper engine: ${whisper_engine}\n`;
         report += `- Recommended model: ${resolvedModel}\n\n`;
+      }
+
+      report += `## YouTube URL Support\n`;
+      if (hasYtDlp) {
+        report += `- Status: Ready (\`yt-dlp\` found)\n\n`;
+      } else {
+        const install = platform.os === "macos" ? "brew install yt-dlp" : "pipx install yt-dlp";
+        report += `- Status: Missing optional dependency\n`;
+        report += `- Install: \`${install}\`\n\n`;
       }
 
       if (result.status === "ready") {

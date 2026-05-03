@@ -1,4 +1,4 @@
-export type Backend = "gemini-api" | "local" | "openai" | "unconfigured" | "none";
+export type Backend = "gemini-api" | "local" | "openai" | "youtube-captions" | "unconfigured" | "none";
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
@@ -53,6 +53,9 @@ export interface AudioResult {
   transcription: TranscriptionSegment[];
   audio_tags: AudioTag[];
   full_analysis: string | null;
+  transcription_source?: "youtube_subtitles" | "youtube_auto_captions" | "gemini-api" | "local_whisper" | "openai" | "none";
+  transcription_source_detail?: string;
+  transcription_fallback_reason?: string;
 }
 
 export interface VideoWatchResult {
