@@ -31,6 +31,29 @@ Available backends:
 - **Local (Whisper)** — Free, fully offline. Requires whisper.cpp or openai-whisper installed.
 - **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.`;
 
+export interface DeriveFpsParams {
+  fps: number | "auto";
+  view_sample?: number;
+  start_time?: string;
+  end_time?: string;
+  segments?: { start: string; end: string }[];
+  duration_seconds: number;
+}
+
+export function deriveFps(params: DeriveFpsParams): number {
+  const usingSegments = params.segments && params.segments.length > 0;
+  if (params.fps === "auto") {
+    if (params.view_sample && !usingSegments) {
+      const startSec = params.start_time ? parseHMS(params.start_time) : 0;
+      const endSec = params.end_time ? parseHMS(params.end_time) : params.duration_seconds;
+      const activeDuration = Math.max(1, endSec - startSec);
+      return params.view_sample / activeDuration;
+    }
+    return calculateAutoFps(params.duration_seconds);
+  }
+  return params.fps;
+}
+
 export function registerVideoWatch(server: McpServer): void {
   server.tool(
     "video_watch",
@@ -77,9 +100,14 @@ export function registerVideoWatch(server: McpServer): void {
       const metadata = await getVideoMetadata(safePath);
 
       // 2. Calculate fps
-      const fps = params.fps === "auto"
-        ? calculateAutoFps(metadata.duration_seconds)
-        : params.fps;
+      const fps = deriveFps({
+        fps: params.fps,
+        view_sample: params.view_sample,
+        start_time: params.start_time,
+        end_time: params.end_time,
+        segments: params.segments,
+        duration_seconds: metadata.duration_seconds,
+      });
 
       // 3. Prepare work dir
       const workDir = join(tmpdir(), `cvv-${Date.now()}`);
