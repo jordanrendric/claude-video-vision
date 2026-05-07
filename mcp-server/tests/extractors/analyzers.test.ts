@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { mkdtempSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import {
   buildAnalysisCommand,
   parseScdetOutput,
@@ -10,6 +15,9 @@ import {
   deriveContentProfile,
 } from "../../src/extractors/analyzers.js";
 import type { AnalysisFilters } from "../../src/types.js";
+
+const execFileAsync = promisify(execFile);
+const SILENCE_FIXTURE = join(import.meta.dirname, "../fixtures/silence-5s.mp4");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,14 +88,57 @@ describe("buildAnalysisCommand", () => {
     expect(result!.args).toContain("-af");
   });
 
-  it("returns videoMetaFile and audioMetaFile paths", () => {
+  it("returns videoMetaFile path", () => {
     const result = buildAnalysisCommand(
       "/video.mp4",
       makeFilters({ scene_changes: true }),
       "/tmp/work",
     );
     expect(result!.videoMetaFile).toContain("video_meta.txt");
-    expect(result!.audioMetaFile).toContain("audio_meta.txt");
+  });
+
+  it("does not append ametadata sink to audio filter chain (regression: silencedetect events vanish when ametadata=print is present)", () => {
+    const result = buildAnalysisCommand(
+      "/video.mp4",
+      makeFilters({ silence: true, loudness: true }),
+      "/tmp/work",
+    );
+    expect(result).not.toBeNull();
+    const afIdx = result!.args.indexOf("-af");
+    expect(afIdx).toBeGreaterThan(-1);
+    const audioFilterChain = result!.args[afIdx + 1];
+    expect(audioFilterChain).toContain("silencedetect");
+    expect(audioFilterChain).not.toContain("ametadata");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildAnalysisCommand — integration (executes ffmpeg)
+// ---------------------------------------------------------------------------
+
+describe("buildAnalysisCommand integration", () => {
+  let workDir: string;
+
+  afterEach(() => {
+    if (workDir) rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("finds silences in synthesized fixture (regression: ametadata sink used to swallow events)", async () => {
+    workDir = mkdtempSync(join(tmpdir(), "cvv-analyzers-test-"));
+    const cmd = buildAnalysisCommand(SILENCE_FIXTURE, makeFilters({ silence: true }), workDir);
+    expect(cmd).not.toBeNull();
+
+    let stderr = "";
+    try {
+      const r = await execFileAsync("ffmpeg", cmd!.args, { maxBuffer: 100 * 1024 * 1024 });
+      stderr = r.stderr;
+    } catch (err: any) {
+      stderr = err.stderr || "";
+    }
+
+    const intervals = parseSilenceOutput(stderr);
+    expect(intervals.length).toBeGreaterThan(0);
+    expect(intervals[0].duration).toBeGreaterThan(0.5);
   });
 });
 
