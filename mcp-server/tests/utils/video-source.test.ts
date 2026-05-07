@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { writeFileSync, rmSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
   buildCaptionAudioResult,
+  cleanExpiredDownloads,
   getCaptionFallbackReason,
   isYouTubeUrl,
   parseSubtitleContent,
@@ -86,5 +87,24 @@ discipline &amp; the one nobody is building for yet.
     expect(audio.backend).toBe("youtube-captions");
     expect(audio.transcription_source).toBe("youtube_auto_captions");
     expect(audio.transcription[0].start).toBe("00:00:00");
+  });
+
+  it("cleans downloaded videos older than the configured max age", () => {
+    const dir = join(tmpdir(), `cvv-download-cleanup-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+    const oldFile = join(dir, "old.mp4");
+    const newFile = join(dir, "new.mp4");
+    writeFileSync(oldFile, "old");
+    writeFileSync(newFile, "new");
+    const oldDate = new Date(Date.now() - 8 * 86400_000);
+    utimesSync(oldFile, oldDate, oldDate);
+
+    try {
+      cleanExpiredDownloads(dir, 7);
+      expect(existsSync(oldFile)).toBe(false);
+      expect(existsSync(newFile)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

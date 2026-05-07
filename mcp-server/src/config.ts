@@ -15,6 +15,7 @@ export const defaultConfig: Config = {
   frame_describer_model: "sonnet",
   enable_index: false,
   session_max_age_days: 7,
+  downloads_max_age_days: 7,
 };
 
 export function loadConfig(configPath: string): Config {

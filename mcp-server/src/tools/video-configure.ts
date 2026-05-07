@@ -23,6 +23,7 @@ export function registerVideoConfigure(server: McpServer): void {
       frame_describer_model: z.enum(["opus", "sonnet", "haiku"]).optional(),
       enable_index: z.boolean().optional(),
       session_max_age_days: z.number().min(1).optional(),
+      downloads_max_age_days: z.number().min(1).optional(),
       clear_sessions: z.boolean().optional(),
     },
     async (params) => {

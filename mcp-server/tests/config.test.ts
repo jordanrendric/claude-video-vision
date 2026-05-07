@@ -48,6 +48,7 @@ describe("config", () => {
     const config = loadConfig(join(TEST_DIR, "config.json"));
     expect(config.enable_index).toBe(false);
     expect(config.session_max_age_days).toBe(7);
+    expect(config.downloads_max_age_days).toBe(7);
   });
 
   it("preserves enable_index when set", () => {
@@ -56,5 +57,6 @@ describe("config", () => {
     const loaded = loadConfig(configPath);
     expect(loaded.enable_index).toBe(true);
     expect(loaded.session_max_age_days).toBe(7);
+    expect(loaded.downloads_max_age_days).toBe(7);
   });
 });

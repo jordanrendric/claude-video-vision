@@ -11,6 +11,7 @@ import { registerVideoAnalyze } from "./tools/video-analyze.js";
 import { registerVideoDetail } from "./tools/video-detail.js";
 import { loadConfig } from "./config.js";
 import { cleanExpiredSessions } from "./session/manager.js";
+import { cleanExpiredDownloads, getDownloadsDir } from "./utils/video-source.js";
 
 const server = new McpServer({
   name: "claude-video-vision",
@@ -30,6 +31,7 @@ if (config.enable_index) {
   const sessionsDir = join(homedir(), ".claude-video-vision", "sessions");
   cleanExpiredSessions(sessionsDir, config.session_max_age_days);
 }
+cleanExpiredDownloads(getDownloadsDir(), config.downloads_max_age_days);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

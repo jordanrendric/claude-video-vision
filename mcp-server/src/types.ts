@@ -16,6 +16,7 @@ export interface Config {
   frame_describer_model: DescriberModel;
   enable_index: boolean;
   session_max_age_days: number;
+  downloads_max_age_days: number;
 }
 
 export interface VideoMetadata {

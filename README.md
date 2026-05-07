@@ -159,7 +159,10 @@ Settings are stored in `~/.claude-video-vision/config.json`:
   "frame_resolution": 512,
   "default_fps": "auto",
   "max_frames": 100,
-  "frame_describer_model": "sonnet"
+  "frame_describer_model": "sonnet",
+  "enable_index": false,
+  "session_max_age_days": 7,
+  "downloads_max_age_days": 7
 }
 ```
 

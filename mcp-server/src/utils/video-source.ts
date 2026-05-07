@@ -135,6 +135,24 @@ export function parseSubtitleContent(raw: string): TranscriptionSegment[] {
   return transcription;
 }
 
+export function cleanExpiredDownloads(downloadsDir: string, maxAgeDays: number): void {
+  if (!existsSync(downloadsDir)) return;
+
+  const cutoff = Date.now() - maxAgeDays * 86400_000;
+  for (const entry of readdirSync(downloadsDir)) {
+    const filePath = join(downloadsDir, entry);
+    try {
+      const stat = statSync(filePath);
+      if (!stat.isFile()) continue;
+      if (stat.mtimeMs < cutoff) {
+        rmSync(filePath, { force: true });
+      }
+    } catch {
+      rmSync(filePath, { force: true });
+    }
+  }
+}
+
 function findDownloadedPath(stdout: string): string | null {
   const lines = stdout
     .split(/\r?\n/)
@@ -190,6 +208,9 @@ async function downloadYouTubeVideo(url: string): Promise<string> {
 
     return validateRegularFile(downloadedPath);
   } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      throw new Error("yt-dlp is required for YouTube URLs but was not found. Run /setup-video-vision for installation instructions.");
+    }
     const detail = err?.stderr || err?.message || String(err);
     throw new Error(`Failed to download YouTube video with yt-dlp: ${detail}`);
   }
