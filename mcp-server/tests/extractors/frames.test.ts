@@ -1,7 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { extractFrames, getVideoMetadata, calculateAutoFps } from "../../src/extractors/frames.js";
+import {
+  extractFrames,
+  getVideoMetadata,
+  calculateAutoFps,
+  frameFormatExtension,
+  frameFormatMimeType,
+} from "../../src/extractors/frames.js";
 import { join } from "path";
-import { rmSync, existsSync } from "fs";
+import { rmSync, existsSync, readdirSync } from "fs";
 import { tmpdir } from "os";
 
 const FIXTURE = join(import.meta.dirname, "../fixtures/test-3s.mp4");
@@ -45,6 +51,20 @@ describe("frame extraction", () => {
     });
   });
 
+  describe("frame format helpers", () => {
+    it("maps frame formats to file extensions", () => {
+      expect(frameFormatExtension("jpeg")).toBe("jpg");
+      expect(frameFormatExtension("png")).toBe("png");
+      expect(frameFormatExtension("webp")).toBe("webp");
+    });
+
+    it("maps frame formats to mime types", () => {
+      expect(frameFormatMimeType("jpeg")).toBe("image/jpeg");
+      expect(frameFormatMimeType("png")).toBe("image/png");
+      expect(frameFormatMimeType("webp")).toBe("image/webp");
+    });
+  });
+
   describe("extractFrames", () => {
     it("extracts frames as base64 images with timestamps", async () => {
       const result = await extractFrames(FIXTURE, {
@@ -56,6 +76,20 @@ describe("frame extraction", () => {
       expect(result[0].timestamp).toBeDefined();
       expect(result[0].image).toBeDefined();
       expect(result[0].image!.length).toBeGreaterThan(100); // base64 data
+      expect(result[0].format).toBe("jpeg");
+    });
+
+    it("supports extracting frames as PNG", async () => {
+      const result = await extractFrames(FIXTURE, {
+        fps: 1,
+        resolution: 256,
+        outputDir: OUT_DIR,
+        format: "png",
+      });
+      const files = readdirSync(OUT_DIR);
+      expect(result.length).toBeGreaterThanOrEqual(2);
+      expect(result[0].format).toBe("png");
+      expect(files.some((file) => file.endsWith(".png"))).toBe(true);
     });
   });
 });

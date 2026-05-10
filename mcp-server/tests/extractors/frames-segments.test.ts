@@ -34,10 +34,11 @@ describe("segment-based frame extraction", () => {
       const segments: Segment[] = [
         { start: "00:00:00", end: "00:00:03", fps: 1, resolution: 256 },
       ];
-      const result = await extractFramesBySegments(FIXTURE, segments, OUT_DIR);
+      const result = await extractFramesBySegments(FIXTURE, segments, OUT_DIR, "png");
       expect(result.length).toBeGreaterThanOrEqual(2);
       expect(result[0].timestamp).toBeDefined();
       expect(result[0].image).toBeDefined();
+      expect(result[0].format).toBe("png");
       expect(result[0].resolution).toBe(256);
     });
   });

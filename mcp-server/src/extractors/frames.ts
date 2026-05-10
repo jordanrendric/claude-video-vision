@@ -2,7 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { readFileSync, readdirSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import type { VideoMetadata, Frame, Segment } from "../types.js";
+import type { VideoMetadata, Frame, FrameFormat, Segment } from "../types.js";
 import { formatHMS, parseHMS } from "../utils/timestamps.js";
 
 const execFileAsync = promisify(execFile);
@@ -58,16 +58,52 @@ export interface ExtractFramesOptions {
   fps: number;
   resolution: number;
   outputDir: string;
+  format?: FrameFormat;
   startTime?: string;
   endTime?: string;
   maxFrames?: number;
+}
+
+export function frameFormatExtension(format: FrameFormat): string {
+  return format === "jpeg" ? "jpg" : format;
+}
+
+export function frameFormatMimeType(format: FrameFormat): string {
+  return `image/${format}`;
+}
+
+function frameQualityArgs(format: FrameFormat): string[] {
+  if (format === "jpeg") return ["-q:v", "5"];
+  if (format === "webp") return ["-quality", "80"];
+  return [];
+}
+
+function isMissingWebpEncoderError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("codec webp") &&
+    (message.includes("encoder not found") ||
+      message.includes("error selecting an encoder") ||
+      message.includes("encoder for format image2") ||
+      message.includes("disabled"))
+  );
 }
 
 export async function extractFrames(
   videoPath: string,
   options: ExtractFramesOptions,
 ): Promise<Frame[]> {
-  const { fps, resolution, outputDir, startTime, endTime, maxFrames = 100 } = options;
+  const {
+    fps,
+    resolution,
+    outputDir,
+    format = "jpeg",
+    startTime,
+    endTime,
+    maxFrames = 100,
+  } = options;
+  const extension = frameFormatExtension(format);
 
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
@@ -88,14 +124,25 @@ export async function extractFrames(
   args.push(
     "-vf", `fps=${fps},scale=${resolution}:-1`,
     "-frames:v", String(maxFrames),
-    "-q:v", "5",
-    join(outputDir, "frame_%04d.jpg"),
+    ...frameQualityArgs(format),
+    join(outputDir, `frame_%04d.${extension}`),
   );
 
-  await execFileAsync("ffmpeg", args);
+  try {
+    await execFileAsync("ffmpeg", args);
+  } catch (error) {
+    if (format === "webp" && isMissingWebpEncoderError(error)) {
+      throw new Error(
+        "WebP frame extraction requires an ffmpeg build with a WebP encoder (libwebp). " +
+          "Use frame_format='jpeg' or frame_format='png', or install an ffmpeg build such as ffmpeg-full.",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 
   const files = readdirSync(outputDir)
-    .filter((f) => f.startsWith("frame_") && f.endsWith(".jpg"))
+    .filter((f) => f.startsWith("frame_") && f.endsWith(`.${extension}`))
     .sort();
 
   const offsetSeconds = startTime ? parseHMS(startTime) : 0;
@@ -109,6 +156,8 @@ export async function extractFrames(
     return {
       timestamp,
       image: base64,
+      format,
+      sourcePath: filePath,
     };
   });
 }
@@ -150,6 +199,7 @@ export async function extractFramesBySegments(
   videoPath: string,
   segments: Segment[],
   baseOutputDir: string,
+  format: FrameFormat = "jpeg",
 ): Promise<SegmentFrame[]> {
   const allFrames: SegmentFrame[] = [];
 
@@ -163,6 +213,7 @@ export async function extractFramesBySegments(
       fps: segment.fps,
       resolution,
       outputDir: resDir,
+      format,
       startTime: segment.start,
       endTime: segment.end,
       maxFrames: 1000,

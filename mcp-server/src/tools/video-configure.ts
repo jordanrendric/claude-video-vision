@@ -17,6 +17,7 @@ export function registerVideoConfigure(server: McpServer): void {
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).optional(),
       whisper_at: z.boolean().optional(),
       frame_mode: z.enum(["images", "descriptions"]).optional(),
+      frame_format: z.enum(["jpeg", "png", "webp"]).optional(),
       frame_resolution: z.number().min(128).max(2048).optional(),
       default_fps: z.union([z.number().positive(), z.literal("auto")]).optional(),
       max_frames: z.number().min(1).max(1000).optional(),

@@ -1,11 +1,18 @@
 import { z } from "zod";
 import { join } from "path";
 import { homedir } from "os";
-import { mkdirSync, rmSync } from "fs";
+import { copyFileSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../config.js";
-import { getVideoMetadata, extractFrames, calculateAutoFps, extractFramesBySegments } from "../extractors/frames.js";
+import {
+  getVideoMetadata,
+  extractFrames,
+  calculateAutoFps,
+  extractFramesBySegments,
+  frameFormatExtension,
+  frameFormatMimeType,
+} from "../extractors/frames.js";
 import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
@@ -17,7 +24,7 @@ import {
   resolveVideoInputDetailed,
 } from "../utils/video-source.js";
 import { getSessionDir, loadManifest, saveManifest, computeVideoHash } from "../session/manager.js";
-import { createManifest, mergeFrames, sampleFrameIndices } from "../session/manifest.js";
+import { createManifest, frameCacheKey, mergeFrames, sampleFrameIndices } from "../session/manifest.js";
 import type { AudioResult, VideoWatchResult, Frame, Segment, SessionManifest } from "../types.js";
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
@@ -34,6 +41,10 @@ Available backends:
 - **Gemini API** — Best quality. Analyzes audio natively. Free tier: 1500 req/day. Requires GEMINI_API_KEY.
 - **Local (Whisper)** — Free, fully offline. Requires whisper.cpp or openai-whisper installed.
 - **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.`;
+
+function timestampToFormattedFilename(timestamp: string, extension: string): string {
+  return `${timestamp.replace(/:/g, "-")}.${extension}`;
+}
 
 export interface DeriveFpsParams {
   fps: number | "auto";
@@ -67,6 +78,7 @@ export function registerVideoWatch(server: McpServer): void {
       fps: z.union([z.coerce.number().positive(), z.literal("auto")]).default("auto").describe("Frames per second to extract"),
       resolution: z.coerce.number().min(128).max(2048).optional().describe("Frame width in px (maintains aspect ratio)"),
       frame_mode: z.enum(["images", "descriptions"]).optional().describe("Return frames as base64 images or text descriptions"),
+      frame_format: z.enum(["jpeg", "png", "webp"]).optional().describe("Frame image format for extraction"),
       describer_model: z.enum(["opus", "sonnet", "haiku"]).optional().describe("Model for frame-describer agent"),
       start_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("Start time (e.g. '00:01:30')"),
       end_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("End time (e.g. '00:05:00')"),
@@ -86,6 +98,9 @@ export function registerVideoWatch(server: McpServer): void {
       const frameMode = params.frame_mode || config.frame_mode;
       const resolved = await resolveVideoInputDetailed(params.path);
       const safePath = resolved.path;
+      const frameFormat = params.frame_format || config.frame_format;
+      const frameExtension = frameFormatExtension(frameFormat);
+      const frameMimeType = frameFormatMimeType(frameFormat);
 
       // Session support
       const useSession = config.enable_index;
@@ -129,14 +144,16 @@ export function registerVideoWatch(server: McpServer): void {
       let framesPromise: Promise<Frame[]>;
 
       if (params.segments && params.segments.length > 0) {
-        const extractDir = useSession ? sessionDir! : join(workDir, "frames");
-        framesPromise = extractFramesBySegments(safePath, params.segments as Segment[], extractDir).then((segmentFrames) => {
+        const extractDir = useSession ? join(sessionDir!, "frames", frameFormat) : join(workDir, "frames");
+        framesPromise = extractFramesBySegments(safePath, params.segments as Segment[], extractDir, frameFormat).then((segmentFrames) => {
           if (useSession && manifest) {
             for (const frame of segmentFrames) {
+              if (!frame.sourcePath) continue;
+
               const res = String(frame.resolution);
-              const tsForFile = frame.timestamp.replace(/:/g, "_");
-              manifest = mergeFrames(manifest!, res, [
-                { timestamp: frame.timestamp, file: `${res}/frame_${tsForFile}.jpg` },
+              const cacheKey = frameCacheKey(res, frameFormat);
+              manifest = mergeFrames(manifest!, cacheKey, [
+                { timestamp: frame.timestamp, file: frame.sourcePath },
               ]);
             }
           }
@@ -147,9 +164,29 @@ export function registerVideoWatch(server: McpServer): void {
           fps,
           resolution,
           outputDir: framesDir,
+          format: frameFormat,
           startTime: params.start_time,
           endTime: params.end_time,
           maxFrames: config.max_frames,
+        }).then((extractedFrames) => {
+          if (useSession && manifest && sessionDir) {
+            const cacheKey = frameCacheKey(resolution, frameFormat);
+            const resDir = join(sessionDir, "frames", frameFormat, String(resolution));
+            mkdirSync(resDir, { recursive: true });
+
+            const manifestEntries: { timestamp: string; file: string }[] = [];
+            for (const frame of extractedFrames) {
+              if (!frame.sourcePath) continue;
+
+              const filePath = join(resDir, timestampToFormattedFilename(frame.timestamp, frameExtension));
+              copyFileSync(frame.sourcePath, filePath);
+              manifestEntries.push({ timestamp: frame.timestamp, file: filePath });
+            }
+
+            manifest = mergeFrames(manifest, cacheKey, manifestEntries);
+          }
+
+          return extractedFrames;
         });
       }
 
@@ -261,7 +298,7 @@ export function registerVideoWatch(server: McpServer): void {
             content.push({
               type: "image",
               data: frame.image,
-              mimeType: "image/jpeg",
+              mimeType: frameMimeType,
             });
           }
         }
@@ -277,7 +314,7 @@ export function registerVideoWatch(server: McpServer): void {
             content.push({
               type: "image",
               data: frame.image,
-              mimeType: "image/jpeg",
+              mimeType: frameMimeType,
             });
           }
         }

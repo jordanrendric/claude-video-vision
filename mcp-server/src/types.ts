@@ -2,6 +2,7 @@ export type Backend = "gemini-api" | "local" | "openai" | "youtube-captions" | "
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
+export type FrameFormat = "jpeg" | "png" | "webp";
 export type DescriberModel = "opus" | "sonnet" | "haiku";
 
 export interface Config {
@@ -10,6 +11,7 @@ export interface Config {
   whisper_model: WhisperModel;
   whisper_at: boolean;
   frame_mode: FrameMode;
+  frame_format: FrameFormat;
   frame_resolution: number;
   default_fps: number | "auto";
   max_frames: number;
@@ -39,6 +41,8 @@ export interface VideoMetadata {
 export interface Frame {
   timestamp: string;
   image?: string;
+  format?: FrameFormat;
+  sourcePath?: string;
   description?: string;
 }
 

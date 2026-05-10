@@ -156,6 +156,7 @@ Settings are stored in `~/.claude-video-vision/config.json`:
   "whisper_model": "auto",
   "whisper_at": false,
   "frame_mode": "images",
+  "frame_format": "jpeg",
   "frame_resolution": 512,
   "default_fps": "auto",
   "max_frames": 100,
@@ -165,6 +166,8 @@ Settings are stored in `~/.claude-video-vision/config.json`:
   "downloads_max_age_days": 7
 }
 ```
+
+`frame_format` can be `jpeg`, `png`, or `webp`. `jpeg` remains the default for backwards compatibility; `png` is useful for screen recordings where text and sharp UI edges should stay lossless.
 
 **Whisper models** auto-download to `~/.claude-video-vision/models/` on first use. Available: `tiny`, `base`, `small`, `medium`, `large-v3-turbo`, `large-v3`, `auto` (picks best for your RAM).
 

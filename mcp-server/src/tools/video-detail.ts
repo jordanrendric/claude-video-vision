@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { join } from "path";
+import { extname, join } from "path";
 import { homedir } from "os";
 import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../config.js";
 import { resolveVideoInputDetailed } from "../utils/video-source.js";
-import { extractFramesBySegments } from "../extractors/frames.js";
+import { extractFramesBySegments, frameFormatExtension, frameFormatMimeType } from "../extractors/frames.js";
+import type { FrameFormat } from "../types.js";
 import type { SegmentFrame } from "../extractors/frames.js";
 import {
   getSessionDir,
@@ -16,6 +17,7 @@ import {
 } from "../session/manager.js";
 import {
   createManifest,
+  frameCacheKey,
   mergeFrames,
   sampleFrameIndices,
 } from "../session/manifest.js";
@@ -33,17 +35,22 @@ const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/;
 interface ViewableFrame {
   timestamp: string;
   image?: string;
+  mimeType?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Convert a HH:MM:SS timestamp to a filesystem-safe string (colons → dashes).
- */
-function timestampToFilename(ts: string): string {
-  return `${ts.replace(/:/g, "-")}.jpg`;
+function timestampToFormattedFilename(ts: string, format: FrameFormat): string {
+  return `${ts.replace(/:/g, "-")}.${frameFormatExtension(format)}`;
+}
+
+function mimeTypeFromFrameFile(file: string): string {
+  const ext = extname(file).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  return "image/jpeg";
 }
 
 /**
@@ -58,11 +65,13 @@ function timestampToFilename(ts: string): string {
 function buildViewablePool(
   extractedFrames: SegmentFrame[],
   manifest: SessionManifest | null,
+  format: FrameFormat,
 ): ViewableFrame[] {
   if (extractedFrames.length > 0) {
     return extractedFrames.map((f) => ({
       timestamp: f.timestamp,
       image: f.image,
+      mimeType: frameFormatMimeType(f.format ?? "jpeg"),
     }));
   }
 
@@ -71,7 +80,10 @@ function buildViewablePool(
   // Flatten all resolution buckets, deduplicate timestamps by highest res.
   const byTimestamp = new Map<string, { res: number; file: string }>();
 
-  for (const [resStr, resData] of Object.entries(manifest.resolutions)) {
+  for (const [cacheKey, resData] of Object.entries(manifest.resolutions)) {
+    const [resStr, cachedFormat = "jpeg"] = cacheKey.split("/");
+    if (cachedFormat !== format) continue;
+
     const res = parseInt(resStr, 10);
     for (const entry of resData.frames) {
       const current = byTimestamp.get(entry.timestamp);
@@ -86,7 +98,7 @@ function buildViewablePool(
     .map(([timestamp, { file }]) => {
       try {
         const data = readFileSync(file);
-        return { timestamp, image: data.toString("base64") };
+        return { timestamp, image: data.toString("base64"), mimeType: mimeTypeFromFrameFile(file) };
       } catch {
         // File missing from disk — still include the entry without image data.
         return { timestamp };
@@ -101,6 +113,7 @@ function buildViewablePool(
 function lookupTimestampsInManifest(
   manifest: SessionManifest,
   timestamps: string[],
+  format: FrameFormat,
 ): ViewableFrame[] {
   const result: ViewableFrame[] = [];
 
@@ -108,7 +121,10 @@ function lookupTimestampsInManifest(
     let bestRes = -1;
     let bestFile: string | null = null;
 
-    for (const [resStr, resData] of Object.entries(manifest.resolutions)) {
+    for (const [cacheKey, resData] of Object.entries(manifest.resolutions)) {
+      const [resStr, cachedFormat = "jpeg"] = cacheKey.split("/");
+      if (cachedFormat !== format) continue;
+
       const res = parseInt(resStr, 10);
       const entry = resData.frames.find((f) => f.timestamp === ts);
       if (entry && res > bestRes) {
@@ -120,7 +136,7 @@ function lookupTimestampsInManifest(
     if (bestFile !== null) {
       try {
         const data = readFileSync(bestFile);
-        result.push({ timestamp: ts, image: data.toString("base64") });
+        result.push({ timestamp: ts, image: data.toString("base64"), mimeType: mimeTypeFromFrameFile(bestFile) });
       } catch {
         result.push({ timestamp: ts });
       }
@@ -167,6 +183,10 @@ export function registerVideoDetail(server: McpServer): void {
         .min(1)
         .optional()
         .describe("Return N evenly spaced frames from the extracted set"),
+      frame_format: z
+        .enum(["jpeg", "png", "webp"])
+        .optional()
+        .describe("Frame image format for extraction"),
       skip_cached: z
         .boolean()
         .default(true)
@@ -181,6 +201,7 @@ export function registerVideoDetail(server: McpServer): void {
       const config = loadConfig(CONFIG_PATH);
       const resolved = await resolveVideoInputDetailed(params.path);
       const safePath = resolved.path;
+      const frameFormat = params.frame_format || config.frame_format;
 
       let sessionDir: string | null = null;
       let manifest: SessionManifest | null = null;
@@ -199,7 +220,7 @@ export function registerVideoDetail(server: McpServer): void {
 
       if (params.segments && params.segments.length > 0) {
         // Always extract to a temporary directory so ffmpeg's sequential
-        // frame_XXXX.jpg naming never overwrites previously cached files.
+        // frame_XXXX.* naming never overwrites previously cached files.
         const tmpWorkDir = join(tmpdir(), `cvv-detail-${Date.now()}`);
         mkdirSync(tmpWorkDir, { recursive: true });
 
@@ -208,6 +229,7 @@ export function registerVideoDetail(server: McpServer): void {
             safePath,
             params.segments,
             tmpWorkDir,
+            frameFormat,
           );
         } finally {
           rmSync(tmpWorkDir, { recursive: true, force: true });
@@ -227,16 +249,20 @@ export function registerVideoDetail(server: McpServer): void {
           }
 
           for (const [resolution, frames] of byResolution) {
-            const resDir = join(sessionDir, "frames", resolution);
+            const cacheKey = frameCacheKey(resolution, frameFormat);
+            const resDir = join(sessionDir, "frames", frameFormat, resolution);
             mkdirSync(resDir, { recursive: true });
 
             const manifestEntries: { timestamp: string; file: string }[] = [];
 
             for (const frame of frames) {
-              const filePath = join(resDir, timestampToFilename(frame.timestamp));
+              const filePath = join(
+                resDir,
+                timestampToFormattedFilename(frame.timestamp, frameFormat),
+              );
 
               // Honour skip_cached — if the file already exists on disk, skip
-              // writing the JPEG again (still add to manifestEntries so that
+              // writing the frame again (still add to manifestEntries so that
               // mergeFrames has a chance to index it if the manifest was lost).
               if (!(params.skip_cached && existsSync(filePath))) {
                 if (frame.image) {
@@ -247,7 +273,7 @@ export function registerVideoDetail(server: McpServer): void {
               manifestEntries.push({ timestamp: frame.timestamp, file: filePath });
             }
 
-            manifest = mergeFrames(manifest!, resolution, manifestEntries);
+            manifest = mergeFrames(manifest!, cacheKey, manifestEntries);
           }
 
           saveManifest(sessionDir, manifest);
@@ -263,24 +289,28 @@ export function registerVideoDetail(server: McpServer): void {
         // Mode A: caller specified exact timestamps.
         if (manifest) {
           // Look them up in the session cache (highest resolution preferred).
-          framesToView = lookupTimestampsInManifest(manifest, params.view);
+          framesToView = lookupTimestampsInManifest(manifest, params.view, frameFormat);
         } else {
           // No session — filter from frames just extracted in this call.
           for (const ts of params.view) {
             const match = extractedFrames.find((f) => f.timestamp === ts);
             if (match) {
-              framesToView.push({ timestamp: match.timestamp, image: match.image });
+              framesToView.push({
+                timestamp: match.timestamp,
+                image: match.image,
+                mimeType: frameFormatMimeType(match.format ?? frameFormat),
+              });
             }
           }
         }
       } else if (params.view_sample !== undefined) {
         // Mode B: return N evenly spaced frames.
-        const pool = buildViewablePool(extractedFrames, manifest);
+        const pool = buildViewablePool(extractedFrames, manifest, frameFormat);
         const indices = sampleFrameIndices(pool.length, params.view_sample);
         framesToView = indices.map((i) => pool[i]);
       } else {
         // Mode C: return all available frames.
-        framesToView = buildViewablePool(extractedFrames, manifest);
+        framesToView = buildViewablePool(extractedFrames, manifest, frameFormat);
       }
 
       // ------------------------------------------------------------------
@@ -288,7 +318,7 @@ export function registerVideoDetail(server: McpServer): void {
       // ------------------------------------------------------------------
       const content: Array<
         | { type: "text"; text: string }
-        | { type: "image"; data: string; mimeType: "image/jpeg" }
+        | { type: "image"; data: string; mimeType: string }
       > = [];
 
       if (resolved.source) {
@@ -334,7 +364,7 @@ export function registerVideoDetail(server: McpServer): void {
           content.push({
             type: "image",
             data: frame.image,
-            mimeType: "image/jpeg",
+            mimeType: frame.mimeType ?? "image/jpeg",
           });
         }
       }

@@ -19,6 +19,7 @@ describe("config", () => {
     const config = loadConfig(join(TEST_DIR, "config.json"));
     expect(config.backend).toBe("unconfigured");
     expect(config.frame_mode).toBe("images");
+    expect(config.frame_format).toBe("jpeg");
     expect(config.frame_resolution).toBe(512);
     expect(config.default_fps).toBe("auto");
     expect(config.max_frames).toBe(100);
@@ -41,6 +42,7 @@ describe("config", () => {
     const loaded = loadConfig(configPath);
     expect(loaded.backend).toBe("openai");
     expect(loaded.frame_mode).toBe("images");
+    expect(loaded.frame_format).toBe("jpeg");
     expect(loaded.max_frames).toBe(100);
   });
 

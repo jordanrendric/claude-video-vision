@@ -2,6 +2,10 @@ import type { SessionManifest } from "../types.js";
 
 type ManifestFrame = { timestamp: string; file: string };
 
+export function frameCacheKey(resolution: string | number, format = "jpeg"): string {
+  return `${resolution}/${format}`;
+}
+
 export function createManifest(videoHash: string, videoPath: string): SessionManifest {
   return {
     video_hash: videoHash,

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createManifest, mergeFrames, getUncachedTimestamps, sampleFrameIndices } from "../../src/session/manifest.js";
+import {
+  createManifest,
+  frameCacheKey,
+  mergeFrames,
+  getUncachedTimestamps,
+  sampleFrameIndices,
+} from "../../src/session/manifest.js";
 
 describe("manifest", () => {
   describe("createManifest", () => {
@@ -37,6 +43,19 @@ describe("manifest", () => {
       const m1 = mergeFrames(m, "512", [{ timestamp: "00:00:02", file: "512/frame_00_00_02.jpg" }]);
       const m2 = mergeFrames(m1, "1024", [{ timestamp: "00:00:02", file: "1024/frame_00_00_02.jpg" }]);
       expect(Object.keys(m2.resolutions)).toEqual(["512", "1024"]);
+    });
+
+    it("keeps different formats separate for the same resolution", () => {
+      const m = createManifest("abc", "/test.mp4");
+      const m1 = mergeFrames(m, frameCacheKey("512", "jpeg"), [
+        { timestamp: "00:00:02", file: "frames/jpeg/512/00-00-02.jpg" },
+      ]);
+      const m2 = mergeFrames(m1, frameCacheKey("512", "png"), [
+        { timestamp: "00:00:02", file: "frames/png/512/00-00-02.png" },
+      ]);
+      expect(Object.keys(m2.resolutions)).toEqual(["512/jpeg", "512/png"]);
+      expect(m2.resolutions["512/jpeg"].frames[0].file).toContain(".jpg");
+      expect(m2.resolutions["512/png"].frames[0].file).toContain(".png");
     });
   });
 
