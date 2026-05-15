@@ -6,6 +6,22 @@ import { formatHMS } from "../utils/timestamps.js";
 // Command builder
 // ---------------------------------------------------------------------------
 
+// lavfi filter values treat `:` as the argument separator and `\` as the
+// escape character. On Windows a path like `C:\Users\...` breaks the parser
+// twice (drive-letter colon and backslashes). Convert backslashes to forward
+// slashes (ffmpeg accepts either) and escape the drive-letter colon.
+//
+// lavfi uses two levels of escape parsing inside ffmpeg (filtergraph level +
+// filter-option-value level), so a literal `:` inside a value must arrive as
+// `\\:` (two real backslashes + colon) in the argv string passed to ffmpeg.
+// In a JS string literal that's "\\\\:" — four source characters representing
+// two `\` characters.
+//
+// Unix paths are unaffected because they have no drive letter and no `\`.
+function escapeLavfiPath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^([A-Za-z]):/, "$1\\\\:");
+}
+
 export interface AnalysisCommandResult {
   args: string[];
   videoMetaFile: string;
@@ -51,7 +67,7 @@ export function buildAnalysisCommand(
   // Always append metadata sink when any video filter is active —
   // scdet, blurdetect, signalstats all write to frame metadata
   if (videoFilters.length > 0) {
-    videoFilters.push(`metadata=mode=print:file=${videoMetaFile}`);
+    videoFilters.push(`metadata=mode=print:file=${escapeLavfiPath(videoMetaFile)}`);
   }
 
   // Audio filter chain

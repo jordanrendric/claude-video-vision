@@ -97,6 +97,33 @@ describe("buildAnalysisCommand", () => {
     expect(result!.videoMetaFile).toContain("video_meta.txt");
   });
 
+  it("escapes Windows drive-letter paths in the metadata filter (regression: lavfi parse failure on Windows)", () => {
+    const result = buildAnalysisCommand(
+      "/video.mp4",
+      makeFilters({ scene_changes: true }),
+      "C:\\Users\\Jordan\\AppData\\Local\\Temp\\session",
+    );
+    expect(result).not.toBeNull();
+    const vfValue = result!.args[result!.args.indexOf("-vf") + 1];
+    // No raw `\Letter` separators survive — those are what lavfi mis-parses as escapes.
+    expect(vfValue).not.toMatch(/\\[A-Za-z]/);
+    // Drive-letter colon arrives at ffmpeg as two real backslashes + colon, so
+    // lavfi's two-level escape parser yields a literal `:` in the value.
+    expect(vfValue).toMatch(/file=C\\\\:\/Users\/Jordan\/AppData\/Local\/Temp\/session/);
+  });
+
+  it("leaves POSIX paths unchanged in the metadata filter", () => {
+    const result = buildAnalysisCommand(
+      "/video.mp4",
+      makeFilters({ scene_changes: true }),
+      "/tmp/work",
+    );
+    expect(result).not.toBeNull();
+    const vfValue = result!.args[result!.args.indexOf("-vf") + 1];
+    expect(vfValue).toContain("file=/tmp/work/video_meta.txt");
+    expect(vfValue).not.toContain("\\\\");
+  });
+
   it("does not append ametadata sink to audio filter chain (regression: silencedetect events vanish when ametadata=print is present)", () => {
     const result = buildAnalysisCommand(
       "/video.mp4",
