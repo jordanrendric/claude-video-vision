@@ -1,6 +1,13 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { existsSync, mkdirSync, rmSync, createReadStream } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  createReadStream,
+  readFileSync,
+  unlinkSync,
+} from "fs";
 import { createHash } from "crypto";
 import { basename, dirname, join } from "path";
 import { pipeline } from "stream/promises";
@@ -93,14 +100,76 @@ async function transcribeWithWhisperCpp(
     }
   }
 
-  const { stdout } = await execFileAsync("whisper-cli", [
-    "--model", modelPath,
-    "--file", wavPath,
-    "--output-json",
-    "--language", "auto",
-  ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 });
+  // Silero VAD model — small (~2MB), downloaded once and reused. Without VAD,
+  // whisper-cli hallucinates fabricated text on silent / score-only audio.
+  // See https://github.com/openai/whisper/discussions/679 for the failure mode.
+  const vadModelPath = `${modelDir}/ggml-silero-v5.1.2.bin`;
+  if (!existsSync(vadModelPath)) {
+    const dir = dirname(vadModelPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const vadUrl =
+      "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin";
+    console.error(`[cvv] Downloading Silero VAD model...`);
+    await execFileAsync("curl", ["-L", "-o", vadModelPath, vadUrl], {
+      timeout: 120_000,
+    });
+    if (!existsSync(vadModelPath)) {
+      throw new Error(`Failed to download VAD model from ${vadUrl}`);
+    }
+    console.error(`[cvv] VAD model downloaded to ${vadModelPath}`);
+  }
 
-  return parseWhisperOutput(stdout);
+  // --output-json writes a JSON *file*, not stdout. We give it an explicit
+  // prefix via -of so we know where to read from, then read, parse, clean up.
+  const outputPrefix = join(dirname(wavPath), basename(wavPath, ".wav"));
+
+  await execFileAsync(
+    "whisper-cli",
+    [
+      "--model", modelPath,
+      "--file", wavPath,
+      "--output-json",
+      "--output-file", outputPrefix,
+      "--language", "auto",
+      "--vad",
+      "--vad-model", vadModelPath,
+    ],
+    { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 },
+  );
+
+  const jsonPath = `${outputPrefix}.json`;
+  if (!existsSync(jsonPath)) {
+    throw new Error(
+      `whisper-cli did not produce expected JSON output at ${jsonPath}`,
+    );
+  }
+  const rawJson = readFileSync(jsonPath, "utf-8");
+  try { unlinkSync(jsonPath); } catch { /* best-effort cleanup */ }
+
+  return parseWhisperOutput(normalizeWhisperCppJson(rawJson));
+}
+
+// whisper-cli writes segments as { timestamps: { from, to }, offsets: { from, to }, text }
+// where offsets are in milliseconds. parseWhisperOutput expects seg.start / seg.end
+// in seconds. Normalize so parseWhisperOutput's existing logic works.
+function normalizeWhisperCppJson(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    const segments = Array.isArray(parsed.transcription) ? parsed.transcription : [];
+    for (const seg of segments) {
+      if (seg && typeof seg === "object" && seg.offsets) {
+        if (typeof seg.start === "undefined" && typeof seg.offsets.from === "number") {
+          seg.start = seg.offsets.from / 1000;
+        }
+        if (typeof seg.end === "undefined" && typeof seg.offsets.to === "number") {
+          seg.end = seg.offsets.to / 1000;
+        }
+      }
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return raw;
+  }
 }
 
 async function transcribeWithWhisperPython(
