@@ -47,7 +47,7 @@ claude --plugin-dir /path/to/claude-video-vision
 Inside Claude Code, run the interactive wizard:
 
 ```
-/setup-video-vision
+/claude-video-vision:setup-video-vision
 ```
 
 It will walk you through backend selection, whisper configuration (if local), frame options, and dependency verification.
