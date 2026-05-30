@@ -25,6 +25,7 @@ Then follow this workflow **in order — do NOT skip step 2**:
 3. Call `video_watch`:
    - **Short videos (< 2 min):** Use `fps: "auto"` without `view_sample` — full coverage to avoid missing brief moments.
    - **Long videos (> 2 min):** Use `segments` with variable FPS based on analysis data. Use `view_sample` to limit initial frames.
+   - **Timestamp ranges:** `start_time` and `end_time` are absolute timestamps on the original video timeline. `end_time` is NOT a duration relative to `start_time`. For a 10-second window from 1:00 to 1:10, use `start_time: "00:01:00"`, `end_time: "00:01:10"` ✓; do not use `end_time: "00:00:10"` ✗.
 
 4. If the user asks for more detail on a specific moment, use `video_detail` to drill in with higher FPS/resolution on a 3-5 second window. Use `view_sample: 3` first, then request specific timestamps.
 

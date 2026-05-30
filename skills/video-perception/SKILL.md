@@ -74,6 +74,8 @@ You have access to video understanding tools via the claude-video-vision MCP ser
 
 **resolution:** 256-512 for quick scans. 512-768 for normal analysis. 1024+ when reading on-screen text or fine details.
 
+**start_time / end_time:** Both are absolute timestamps on the original video timeline. `end_time` is NOT a duration relative to `start_time`. For a 10-second clip from 1:00 to 1:10, use `start_time: "00:01:00"` and `end_time: "00:01:10"`; do not use `end_time: "00:00:10"` unless the intended absolute end timestamp is 10 seconds into the video.
+
 **segments:** Use when you have analysis data. Each segment can have its own fps and resolution. Overrides global fps/start_time/end_time.
 
 **view_sample:** Returns N evenly spaced frames from the extracted set. Use this to avoid flooding context with too many images.
