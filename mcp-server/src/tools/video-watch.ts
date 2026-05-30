@@ -80,8 +80,11 @@ export function registerVideoWatch(server: McpServer): void {
       frame_mode: z.enum(["images", "descriptions"]).optional().describe("Return frames as base64 images or text descriptions"),
       frame_format: z.enum(["jpeg", "png", "webp"]).optional().describe("Frame image format for extraction"),
       describer_model: z.enum(["opus", "sonnet", "haiku"]).optional().describe("Model for frame-describer agent"),
-      start_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("Start time (e.g. '00:01:30')"),
-      end_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("End time (e.g. '00:05:00')"),
+      start_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("Absolute timestamp where extraction starts on the original video timeline (e.g. '00:01:30')"),
+      end_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe(
+        "Absolute timestamp where extraction ends on the original video timeline, NOT a duration relative to start_time. " +
+        "To extract 10 seconds starting at 1:00, use start_time='00:01:00' and end_time='00:01:10' (not end_time='00:00:10').",
+      ),
       skip_audio: z.boolean().default(false).describe("Skip audio extraction and transcription — frames only"),
       segments: z.array(z.object({
         start: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format"),
