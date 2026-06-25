@@ -12,7 +12,7 @@ export function registerVideoConfigure(server: McpServer): void {
     "video_configure",
     "Configure video perception preferences (backend, resolution, fps, whisper model, etc.)",
     {
-      backend: z.enum(["gemini-api", "local", "openai"]).optional(),
+      backend: z.enum(["gemini-api", "local", "openai", "twelvelabs"]).optional(),
       whisper_engine: z.enum(["cpp", "python"]).optional(),
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).optional(),
       whisper_at: z.boolean().optional(),
@@ -31,6 +31,11 @@ export function registerVideoConfigure(server: McpServer): void {
       audio_chunk_trigger_seconds: z.number().min(60).optional(),
       audio_chunk_size_seconds: z.number().min(60).optional(),
       audio_chunk_overlap_seconds: z.number().min(0).max(60).optional(),
+      twelvelabs_model: z.string().min(1).optional(),
+      twelvelabs_index_name: z.string().min(1).optional(),
+      twelvelabs_prompt: z.string().optional(),
+      twelvelabs_max_tokens: z.number().min(512).max(98304).optional(),
+      twelvelabs_poll_seconds: z.number().min(1).max(60).optional(),
     },
     async (params) => {
       if (params.clear_sessions) {

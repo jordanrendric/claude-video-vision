@@ -8,7 +8,7 @@ export function registerVideoSetup(server: McpServer): void {
     "video_setup",
     "Check dependencies for video perception (ffmpeg, whisper, gemini api, optional yt-dlp for YouTube URLs).",
     {
-      backend: z.enum(["gemini-api", "local", "openai"]).describe("Audio processing backend"),
+      backend: z.enum(["gemini-api", "local", "openai", "twelvelabs"]).describe("Audio/video understanding backend"),
       whisper_engine: z.enum(["cpp", "python"]).default("cpp"),
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).default("auto"),
     },

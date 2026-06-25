@@ -65,6 +65,14 @@ export async function checkDependencies(backend: Backend, whisperEngine?: Whispe
     }
   }
 
+  if (backend === "twelvelabs") {
+    if (!process.env.TWELVELABS_API_KEY) {
+      missing.push("TWELVELABS_API_KEY");
+      instructions.push("Set TWELVELABS_API_KEY environment variable");
+      instructions.push("Get a free key at: https://twelvelabs.io");
+    }
+  }
+
   if (missing.length === 0) {
     return { status: "ready", message: "All dependencies are installed.", missing: [], instructions: [] };
   }

@@ -71,6 +71,15 @@ describe("config", () => {
     expect(config.audio_chunk_overlap_seconds).toBe(0);
   });
 
+  it("returns defaults for twelvelabs fields", () => {
+    const config = loadConfig(join(TEST_DIR, "config.json"));
+    expect(config.twelvelabs_model).toBe("pegasus1.2");
+    expect(config.twelvelabs_index_name).toBe("claude-video-vision");
+    expect(config.twelvelabs_prompt).toBe("");
+    expect(config.twelvelabs_max_tokens).toBe(2048);
+    expect(config.twelvelabs_poll_seconds).toBe(5);
+  });
+
   it("preserves audio_model override when set", () => {
     const configPath = join(TEST_DIR, "config.json");
     writeFileSync(configPath, JSON.stringify({ audio_model: "gemini-3.1-pro-preview" }));

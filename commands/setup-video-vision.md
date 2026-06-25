@@ -18,6 +18,8 @@ Ask the user:
 >
 > **c) OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY. Paid per usage.
 >
+> **d) TwelveLabs (Pegasus)** — Whole-video understanding server-side. Returns a compact natural-language analysis (`full_analysis`) instead of a transcript — low-token for long videos. Free tier available. Requires TWELVELABS_API_KEY (free at twelvelabs.io).
+>
 > All backends use ffmpeg to extract video frames — Claude sees the frames directly.
 
 After the user answers, call `video_configure` with the chosen `backend`.
