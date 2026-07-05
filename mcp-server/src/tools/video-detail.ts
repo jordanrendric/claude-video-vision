@@ -162,10 +162,17 @@ export function registerVideoDetail(server: McpServer): void {
           z.object({
             start: z
               .string()
-              .regex(HMS_REGEX, "Must be HH:MM:SS format"),
+              .regex(HMS_REGEX, "Must be HH:MM:SS format")
+              .describe(
+                "Absolute timestamp where this segment starts (measured from the video's 00:00:00).",
+              ),
             end: z
               .string()
-              .regex(HMS_REGEX, "Must be HH:MM:SS format"),
+              .regex(HMS_REGEX, "Must be HH:MM:SS format")
+              .describe(
+                "Absolute timestamp where this segment ends (NOT a duration relative to `start`). " +
+                "Example: to extract from 1:00 to 1:10, use start='00:01:00' end='00:01:10'.",
+              ),
             fps: z.number().positive(),
             resolution: z.number().min(128).max(2048).optional(),
           }),

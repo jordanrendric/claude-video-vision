@@ -80,12 +80,16 @@ export function registerVideoWatch(server: McpServer): void {
       frame_mode: z.enum(["images", "descriptions"]).optional().describe("Return frames as base64 images or text descriptions"),
       frame_format: z.enum(["jpeg", "png", "webp"]).optional().describe("Frame image format for extraction"),
       describer_model: z.enum(["opus", "sonnet", "haiku"]).optional().describe("Model for frame-describer agent"),
-      start_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("Start time (e.g. '00:01:30')"),
-      end_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("End time (e.g. '00:05:00')"),
+      start_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe("Absolute timestamp where extraction starts (measured from the video's 00:00:00). Format: 'HH:MM:SS'."),
+      end_time: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").optional().describe(
+        "Absolute timestamp where extraction ends (NOT a duration). " +
+        "Format: 'HH:MM:SS'. " +
+        "Example: to extract from 1:00 to 1:10, use start_time='00:01:00' end_time='00:01:10'."
+      ),
       skip_audio: z.boolean().default(false).describe("Skip audio extraction and transcription — frames only"),
       segments: z.array(z.object({
-        start: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format"),
-        end: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format"),
+        start: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").describe("Absolute timestamp where this segment starts (measured from the video's 00:00:00)."),
+        end: z.string().regex(HMS_REGEX, "Must be HH:MM:SS format").describe("Absolute timestamp where this segment ends (NOT a duration relative to `start`)."),
         fps: z.number().positive(),
         resolution: z.number().min(128).max(2048).optional(),
       })).optional().describe("Variable FPS/resolution segments — overrides global fps/start_time/end_time"),
