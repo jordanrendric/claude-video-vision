@@ -22,6 +22,11 @@ export const defaultConfig: Config = {
   audio_chunk_trigger_seconds: 1200,
   audio_chunk_size_seconds: 600,
   audio_chunk_overlap_seconds: 0,
+  twelvelabs_model: "pegasus1.2",
+  twelvelabs_index_name: "claude-video-vision",
+  twelvelabs_prompt: "",
+  twelvelabs_max_tokens: 2048,
+  twelvelabs_poll_seconds: 5,
 };
 
 export function loadConfig(configPath: string): Config {

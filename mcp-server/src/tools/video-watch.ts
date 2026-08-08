@@ -17,6 +17,7 @@ import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
+import { analyzeWithTwelveLabs } from "../backends/twelvelabs.js";
 import { parseHMS, shiftAudioResult } from "../utils/timestamps.js";
 import {
   buildCaptionAudioResult,
@@ -40,7 +41,8 @@ Please run **/setup-video-vision** to configure the plugin before using it.
 Available backends:
 - **Gemini API** — Best quality. Analyzes audio natively. Free tier: 1500 req/day. Requires GEMINI_API_KEY.
 - **Local (Whisper)** — Free, fully offline. Requires whisper.cpp or openai-whisper installed.
-- **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.`;
+- **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.
+- **TwelveLabs (Pegasus)** — Whole-video understanding server-side; low-token summaries for long videos. Free tier available. Requires TWELVELABS_API_KEY.`;
 
 function timestampToFormattedFilename(timestamp: string, extension: string): string {
   return `${timestamp.replace(/:/g, "-")}.${extension}`;
@@ -201,6 +203,15 @@ export function registerVideoWatch(server: McpServer): void {
             endTime: params.end_time,
           }),
         );
+      } else if (config.backend === "twelvelabs") {
+        // Pegasus understands the whole video server-side and returns a compact
+        // analysis in `full_analysis` instead of a transcript — low-token vision
+        // for long videos. The later shiftAudioResult is a no-op here since it
+        // only touches transcription/audio_tags, which Pegasus leaves empty.
+        audioPromise = analyzeWithTwelveLabs({ videoPath: safePath }, config, {
+          startTime: params.start_time ? parseHMS(params.start_time) : undefined,
+          endTime: params.end_time ? parseHMS(params.end_time) : undefined,
+        });
       } else if (config.backend === "gemini-api") {
         audioPromise = analyzeWithGeminiApi(safePath, config, {
           startTime: params.start_time,

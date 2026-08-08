@@ -1,4 +1,4 @@
-export type Backend = "gemini-api" | "local" | "openai" | "youtube-captions" | "unconfigured" | "none";
+export type Backend = "gemini-api" | "local" | "openai" | "twelvelabs" | "youtube-captions" | "unconfigured" | "none";
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
@@ -24,6 +24,11 @@ export interface Config {
   audio_chunk_trigger_seconds: number;
   audio_chunk_size_seconds: number;
   audio_chunk_overlap_seconds: number; // reserved: dedup post-processor TBD; default 0 = no overlap
+  twelvelabs_model: string;            // Pegasus model for the twelvelabs backend (e.g. "pegasus1.2")
+  twelvelabs_index_name: string;       // index reused across runs for Pegasus video understanding
+  twelvelabs_prompt: string;           // prompt that shapes the Pegasus analysis ("" → built-in default)
+  twelvelabs_max_tokens: number;       // max tokens for the Pegasus response
+  twelvelabs_poll_seconds: number;     // seconds between indexing-task status polls
 }
 
 export interface VideoMetadata {

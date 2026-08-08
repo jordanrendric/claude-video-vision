@@ -84,8 +84,32 @@ Claude adapts parameters automatically:
 | **Gemini API** | Native (speech + non-speech events) | Free tier: 1500 req/day | `GEMINI_API_KEY` env var |
 | **Local (Whisper)** | `whisper.cpp` or Python `openai-whisper` | Free, fully offline | `brew install whisper-cpp` + auto model download |
 | **OpenAI API** | OpenAI Whisper API | Paid per usage | `OPENAI_API_KEY` env var |
+| **TwelveLabs (Pegasus)** | Whole-video understanding server-side (`full_analysis`) | Free tier available | `TWELVELABS_API_KEY` env var |
 
 **All backends** extract video frames via ffmpeg — Claude always has direct visual access.
+
+### TwelveLabs / Pegasus — low-token analysis for long videos
+
+The other backends transcribe audio; **TwelveLabs Pegasus** instead *watches the whole
+video server-side* and returns a compact natural-language analysis in the result's
+`full_analysis` field. That makes it a low-token option for long videos where shipping
+dozens of frames would be expensive — the model does the perception and Claude reads the
+summary (frames are still extracted as usual, so visual access is unchanged).
+
+```jsonc
+// ~/.claude-video-vision/config.json
+{
+  "backend": "twelvelabs",
+  "twelvelabs_model": "pegasus1.2",          // or "pegasus1.5" for analysis windows
+  "twelvelabs_index_name": "claude-video-vision",
+  "twelvelabs_prompt": "",                    // "" → built-in timeline prompt
+  "twelvelabs_max_tokens": 2048
+}
+```
+
+Pegasus indexes the video (4s–1h) before analysis, so the first call on a new video
+takes longer than a transcription backend. Get a free API key at
+[twelvelabs.io](https://twelvelabs.io) — there's a generous free tier.
 
 ## Architecture
 
