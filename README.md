@@ -181,6 +181,33 @@ For YouTube URLs, the server uses this transcript order:
 
 Audio results label provenance with `transcription_source`, for example `youtube_subtitles` or `youtube_auto_captions`, so Claude can treat manual subtitles as stronger evidence than auto-captions.
 
+## Troubleshooting
+
+### Windows: MCP server fails to connect with `Unknown command: "claude-video-vision@latest"`
+
+The plugin starts its MCP server with `npx -y claude-video-vision@latest`. If `claude mcp list` shows the server as failed and running that command yourself prints `Unknown command: "claude-video-vision@latest"` followed by a hint about `npm help`, then `npm` received the package name as if it were a subcommand. That points to a broken or outdated `npx` on your machine, not to the plugin.
+
+1. **Check your npm install** in PowerShell:
+
+   ```powershell
+   npx --version
+   npm --version
+   where.exe npx
+   ```
+
+   Both versions should match (7 or newer), and `where.exe npx` should point to `npx.cmd` inside your Node.js install directory.
+
+2. **Fix it** by updating npm (`npm install -g npm@latest`) or reinstalling Node.js 20+ LTS, then restart Claude Code.
+
+3. **Workaround** if it still fails: install the server globally and register it yourself.
+
+   ```powershell
+   npm install -g claude-video-vision
+   claude mcp add --scope user claude-video-vision -- claude-video-vision
+   ```
+
+   The plugin's own server entry will keep showing as failed; you can ignore it. A global install does not update itself, so re-run `npm install -g claude-video-vision` to pick up new releases.
+
 ## Status
 
 **v1.0.0** — Initial release. Tested on macOS (Apple Silicon) with Local backend (whisper.cpp).
