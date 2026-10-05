@@ -75,8 +75,13 @@ export interface VideoWatchResult {
   audio: AudioResult;
 }
 
+export interface SceneChangeOptions {
+  /** Minimum scdet score (0-100) for a frame to count as a scene change. */
+  threshold: number;
+}
+
 export interface AnalysisFilters {
-  scene_changes: boolean;
+  scene_changes: boolean | SceneChangeOptions;
   black_intervals: boolean;
   silence: boolean;
   freeze: boolean;
@@ -116,7 +121,14 @@ export interface VideoAnalysis {
   loudness_summary?: { mean_lufs: number; range_lu: number };
   transcription?: TranscriptionSegment[];
   audio_warnings?: ChunkWarning[];
+  /** Set when the ffmpeg pass stopped early: filter results only cover up to `analyzed_until`. */
+  incomplete?: AnalysisIncomplete;
   content_profile: string;
+}
+
+export interface AnalysisIncomplete {
+  analyzed_until: string;
+  reason: string;
 }
 
 export interface SessionManifest {

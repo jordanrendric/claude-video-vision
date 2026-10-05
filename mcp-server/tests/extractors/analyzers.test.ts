@@ -6,13 +6,19 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   buildAnalysisCommand,
+  DEFAULT_SCDET_THRESHOLD,
+  parseScdetFromMetaFile,
   parseScdetOutput,
+  sceneChangeThreshold,
   parseBlackdetectOutput,
   parseSilenceOutput,
   parseFreezeOutput,
   parseSitiOutput,
   parseEbur128Output,
   deriveContentProfile,
+  analysisTimeoutMs,
+  parseFfmpegProgressTime,
+  runAnalysisCommand,
 } from "../../src/extractors/analyzers.js";
 import type { AnalysisFilters } from "../../src/types.js";
 
@@ -59,6 +65,22 @@ describe("buildAnalysisCommand", () => {
     // Must discard output
     expect(result!.args).toContain("-f");
     expect(result!.args[result!.args.indexOf("-f") + 1]).toBe("null");
+  });
+
+  it("runs scdet at the default threshold when scene_changes is true", () => {
+    const result = buildAnalysisCommand("/video.mp4", makeFilters({ scene_changes: true }), "/tmp/work");
+    const vf = result!.args[result!.args.indexOf("-vf") + 1];
+    expect(vf).toContain(`scdet=threshold=${DEFAULT_SCDET_THRESHOLD},`);
+  });
+
+  it("runs scdet at the caller's threshold when one is given", () => {
+    const result = buildAnalysisCommand(
+      "/video.mp4",
+      makeFilters({ scene_changes: { threshold: 12.5 } }),
+      "/tmp/work",
+    );
+    const vf = result!.args[result!.args.indexOf("-vf") + 1];
+    expect(vf).toContain("scdet=threshold=12.5,");
   });
 
   it("builds correct args for audio filters only (silence + loudness)", () => {
@@ -190,6 +212,66 @@ describe("parseScdetOutput", () => {
   it("returns empty array when no scene changes found", () => {
     const result = parseScdetOutput("nothing relevant here");
     expect(result).toEqual([]);
+  });
+
+  it("parses the `key: value,` log format emitted by current ffmpeg builds", () => {
+    const stderr = `
+      [Parsed_scdet_0 @ 0x784d402100] lavfi.scd.score: 32.590, lavfi.scd.time: 2
+      [Parsed_scdet_0 @ 0x784d402100] lavfi.scd.score: 26.889, lavfi.scd.time: 4
+    `;
+    const result = parseScdetOutput(stderr);
+    expect(result).toEqual([
+      { score: 32.59, time: "00:00:02" },
+      { score: 26.889, time: "00:00:04" },
+    ]);
+  });
+
+  it("drops scene changes scoring below the threshold", () => {
+    const stderr = `
+      [Parsed_scdet_0 @ 0x...] lavfi.scd.score=45.2 lavfi.scd.time=1.234
+      [Parsed_scdet_0 @ 0x...] lavfi.scd.score=9.5 lavfi.scd.time=5.678
+    `;
+    const result = parseScdetOutput(stderr, 10);
+    expect(result.map((s) => s.score)).toEqual([45.2]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseScdetFromMetaFile
+// ---------------------------------------------------------------------------
+
+describe("parseScdetFromMetaFile", () => {
+  const meta = [
+    "frame:9    pts:9216   pts_time:0.9",
+    "lavfi.scd.mafd=1.200",
+    "lavfi.scd.score=5.000",
+    "frame:20   pts:20480  pts_time:2",
+    "lavfi.scd.mafd=40.100",
+    "lavfi.scd.score=32.590",
+    "lavfi.scd.time=2",
+  ].join("\n");
+
+  it("defaults to a threshold of 8, dropping motion-level scores", () => {
+    expect(DEFAULT_SCDET_THRESHOLD).toBe(8);
+    expect(parseScdetFromMetaFile(meta)).toEqual([{ time: "00:00:02", score: 32.59 }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sceneChangeThreshold
+// ---------------------------------------------------------------------------
+
+describe("sceneChangeThreshold", () => {
+  it("returns null when scene detection is off", () => {
+    expect(sceneChangeThreshold(false)).toBeNull();
+  });
+
+  it("returns the default threshold for `true`", () => {
+    expect(sceneChangeThreshold(true)).toBe(DEFAULT_SCDET_THRESHOLD);
+  });
+
+  it("returns the caller's threshold for an options object", () => {
+    expect(sceneChangeThreshold({ threshold: 3 })).toBe(3);
   });
 });
 
@@ -350,5 +432,75 @@ describe("deriveContentProfile", () => {
     const profile = deriveContentProfile(undefined, 40);
     expect(profile).toContain("unknown visual complexity");
     expect(profile).toContain("high motion");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Long-source handling (#47)
+// ---------------------------------------------------------------------------
+
+describe("analysisTimeoutMs", () => {
+  it("never goes below 10 minutes", () => {
+    expect(analysisTimeoutMs(60)).toBe(600_000);
+  });
+
+  it("allows twice the video duration for long sources", () => {
+    // 2001: A Space Odyssey, 148:49 — killed at the flat 10-minute timeout.
+    expect(analysisTimeoutMs(8929.363)).toBe(17_859_000);
+  });
+});
+
+describe("parseFfmpegProgressTime", () => {
+  it("returns the last progress timestamp in seconds", () => {
+    const stderr =
+      "frame= 1765 fps=0.0 q=-0.0 size=N/A time=00:00:59.02 bitrate=N/A speed= 117x\r" +
+      "frame= 5358 fps=3541 q=-0.0 size=N/A time=01:08:52.81 bitrate=N/A speed= 118x\r";
+    expect(parseFfmpegProgressTime(stderr)).toBeCloseTo(4132.81);
+  });
+
+  it("returns null when no progress was reported", () => {
+    expect(parseFfmpegProgressTime("frame=    0 fps=0.0 q=0.0 size=N/A time=N/A bitrate=N/A")).toBeNull();
+  });
+});
+
+describe("runAnalysisCommand", () => {
+  it("runs ffmpeg with a duration-scaled timeout and returns its stderr", async () => {
+    const calls: unknown[] = [];
+    const exec = async (file: string, args: string[], options: { timeout: number }) => {
+      calls.push({ file, args, timeout: options.timeout });
+      return { stdout: "", stderr: "all good" };
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 8929.363, exec);
+
+    expect(calls).toEqual([{ file: "ffmpeg", args: ["-i", "v.mkv"], timeout: 17_859_000 }]);
+    expect(run).toEqual({ stderr: "all good" });
+  });
+
+  it("keeps the stderr of a non-zero exit, as filters still report results", async () => {
+    const exec = async () => {
+      throw Object.assign(new Error("exit 1"), { killed: false, code: 1, stderr: "partial but complete" });
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 60, exec);
+
+    expect(run).toEqual({ stderr: "partial but complete" });
+  });
+
+  it("flags the analysis as incomplete when ffmpeg is killed by the timeout", async () => {
+    const exec = async () => {
+      throw Object.assign(new Error("killed"), {
+        killed: true,
+        code: 255,
+        stderr: "frame= 99 fps=7 size=N/A time=01:08:52.40 bitrate=N/A speed=6.9x\r",
+      });
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 8929.363, exec);
+
+    expect(run.incomplete).toEqual({
+      analyzed_until: "01:08:52",
+      reason: expect.stringContaining("timed out"),
+    });
   });
 });
