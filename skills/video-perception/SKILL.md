@@ -44,6 +44,10 @@ You have access to video understanding tools via the claude-video-vision MCP ser
    Always include `transcription: true` when the video has audio — the transcription
    tells you WHERE to look visually.
 
+   `scene_changes: true` reports hard cuts (scdet score >= 8). If the user needs softer
+   transitions (dissolves, slow fades), pass `scene_changes: { threshold: 4 }`; if
+   handheld or fast-moving footage floods the list, raise it (e.g. `{ threshold: 15 }`).
+
 3. Use the analysis results and transcription to plan your frame extraction strategy:
    - Low FPS (0.1-0.5) for static or predictable segments
    - Higher FPS (1-3) only around scene changes, motion peaks, or moments

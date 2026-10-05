@@ -75,8 +75,13 @@ export interface VideoWatchResult {
   audio: AudioResult;
 }
 
+export interface SceneChangeOptions {
+  /** Minimum scdet score (0-100) for a frame to count as a scene change. */
+  threshold: number;
+}
+
 export interface AnalysisFilters {
-  scene_changes: boolean;
+  scene_changes: boolean | SceneChangeOptions;
   black_intervals: boolean;
   silence: boolean;
   freeze: boolean;

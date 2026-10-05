@@ -6,7 +6,10 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   buildAnalysisCommand,
+  DEFAULT_SCDET_THRESHOLD,
+  parseScdetFromMetaFile,
   parseScdetOutput,
+  sceneChangeThreshold,
   parseBlackdetectOutput,
   parseSilenceOutput,
   parseFreezeOutput,
@@ -59,6 +62,22 @@ describe("buildAnalysisCommand", () => {
     // Must discard output
     expect(result!.args).toContain("-f");
     expect(result!.args[result!.args.indexOf("-f") + 1]).toBe("null");
+  });
+
+  it("runs scdet at the default threshold when scene_changes is true", () => {
+    const result = buildAnalysisCommand("/video.mp4", makeFilters({ scene_changes: true }), "/tmp/work");
+    const vf = result!.args[result!.args.indexOf("-vf") + 1];
+    expect(vf).toContain(`scdet=threshold=${DEFAULT_SCDET_THRESHOLD},`);
+  });
+
+  it("runs scdet at the caller's threshold when one is given", () => {
+    const result = buildAnalysisCommand(
+      "/video.mp4",
+      makeFilters({ scene_changes: { threshold: 12.5 } }),
+      "/tmp/work",
+    );
+    const vf = result!.args[result!.args.indexOf("-vf") + 1];
+    expect(vf).toContain("scdet=threshold=12.5,");
   });
 
   it("builds correct args for audio filters only (silence + loudness)", () => {
@@ -190,6 +209,66 @@ describe("parseScdetOutput", () => {
   it("returns empty array when no scene changes found", () => {
     const result = parseScdetOutput("nothing relevant here");
     expect(result).toEqual([]);
+  });
+
+  it("parses the `key: value,` log format emitted by current ffmpeg builds", () => {
+    const stderr = `
+      [Parsed_scdet_0 @ 0x784d402100] lavfi.scd.score: 32.590, lavfi.scd.time: 2
+      [Parsed_scdet_0 @ 0x784d402100] lavfi.scd.score: 26.889, lavfi.scd.time: 4
+    `;
+    const result = parseScdetOutput(stderr);
+    expect(result).toEqual([
+      { score: 32.59, time: "00:00:02" },
+      { score: 26.889, time: "00:00:04" },
+    ]);
+  });
+
+  it("drops scene changes scoring below the threshold", () => {
+    const stderr = `
+      [Parsed_scdet_0 @ 0x...] lavfi.scd.score=45.2 lavfi.scd.time=1.234
+      [Parsed_scdet_0 @ 0x...] lavfi.scd.score=9.5 lavfi.scd.time=5.678
+    `;
+    const result = parseScdetOutput(stderr, 10);
+    expect(result.map((s) => s.score)).toEqual([45.2]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseScdetFromMetaFile
+// ---------------------------------------------------------------------------
+
+describe("parseScdetFromMetaFile", () => {
+  const meta = [
+    "frame:9    pts:9216   pts_time:0.9",
+    "lavfi.scd.mafd=1.200",
+    "lavfi.scd.score=5.000",
+    "frame:20   pts:20480  pts_time:2",
+    "lavfi.scd.mafd=40.100",
+    "lavfi.scd.score=32.590",
+    "lavfi.scd.time=2",
+  ].join("\n");
+
+  it("defaults to a threshold of 8, dropping motion-level scores", () => {
+    expect(DEFAULT_SCDET_THRESHOLD).toBe(8);
+    expect(parseScdetFromMetaFile(meta)).toEqual([{ time: "00:00:02", score: 32.59 }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sceneChangeThreshold
+// ---------------------------------------------------------------------------
+
+describe("sceneChangeThreshold", () => {
+  it("returns null when scene detection is off", () => {
+    expect(sceneChangeThreshold(false)).toBeNull();
+  });
+
+  it("returns the default threshold for `true`", () => {
+    expect(sceneChangeThreshold(true)).toBe(DEFAULT_SCDET_THRESHOLD);
+  });
+
+  it("returns the caller's threshold for an options object", () => {
+    expect(sceneChangeThreshold({ threshold: 3 })).toBe(3);
   });
 });
 

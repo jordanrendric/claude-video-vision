@@ -19,6 +19,8 @@ import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
 import {
   buildAnalysisCommand,
+  DEFAULT_SCDET_THRESHOLD,
+  sceneChangeThreshold,
   parseScdetOutput,
   parseScdetFromMetaFile,
   parseBlackdetectOutput,
@@ -44,6 +46,18 @@ const execFileAsync = promisify(execFile);
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
 const SESSIONS_DIR = join(homedir(), ".claude-video-vision", "sessions");
 
+export const sceneChangesSchema = z
+  .union([
+    z.boolean(),
+    z.object({ threshold: z.number().min(0).max(100) }),
+  ])
+  .default(false)
+  .describe(
+    `Detect scene cuts (scdet). \`true\` keeps cuts scoring >= ${DEFAULT_SCDET_THRESHOLD} (hard cuts). ` +
+    "Pass { threshold: N } (0-100) to tune: lower catches softer transitions but adds camera-motion noise, " +
+    "higher keeps only the most abrupt cuts.",
+  );
+
 export function registerVideoAnalyze(server: McpServer): void {
   server.tool(
     "video_analyze",
@@ -51,10 +65,7 @@ export function registerVideoAnalyze(server: McpServer): void {
     {
       path: z.string().describe("Absolute/relative path to the video file, or a YouTube URL"),
       filters: z.object({
-        scene_changes: z
-          .boolean()
-          .default(false)
-          .describe("Detect scene cuts (scdet)"),
+        scene_changes: sceneChangesSchema,
         black_intervals: z
           .boolean()
           .default(false)
@@ -132,14 +143,15 @@ export function registerVideoAnalyze(server: McpServer): void {
           }
 
           // 5. Parse scene changes from metadata file (scdet writes to frame metadata, not stderr)
-          if (filters.scene_changes && existsSync(cmd.videoMetaFile)) {
+          const scdetThreshold = sceneChangeThreshold(filters.scene_changes);
+          if (scdetThreshold !== null && existsSync(cmd.videoMetaFile)) {
             const metaContent = readFileSync(cmd.videoMetaFile, "utf-8");
-            analysis.scenes = parseScdetFromMetaFile(metaContent);
+            analysis.scenes = parseScdetFromMetaFile(metaContent, scdetThreshold);
             if (analysis.scenes.length === 0) {
-              analysis.scenes = parseScdetOutput(stderr);
+              analysis.scenes = parseScdetOutput(stderr, scdetThreshold);
             }
-          } else if (filters.scene_changes) {
-            analysis.scenes = parseScdetOutput(stderr);
+          } else if (scdetThreshold !== null) {
+            analysis.scenes = parseScdetOutput(stderr, scdetThreshold);
           }
 
           if (filters.black_intervals) {

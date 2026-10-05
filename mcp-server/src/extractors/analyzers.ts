@@ -22,6 +22,20 @@ function escapeLavfiPath(p: string): string {
   return p.replace(/\\/g, "/").replace(/^([A-Za-z]):/, "$1\\\\:");
 }
 
+/**
+ * Default minimum scdet score for a scene change. Scores of 8+ correlate with
+ * hard cuts; below that, handheld motion and fast pans inside a single shot
+ * dominate (see #45).
+ */
+export const DEFAULT_SCDET_THRESHOLD = 8;
+
+/** Resolves the scdet threshold for a filter selection, or null when off. */
+export function sceneChangeThreshold(sceneChanges: AnalysisFilters["scene_changes"]): number | null {
+  if (sceneChanges === false) return null;
+  if (sceneChanges === true) return DEFAULT_SCDET_THRESHOLD;
+  return sceneChanges.threshold;
+}
+
 export interface AnalysisCommandResult {
   args: string[];
   videoMetaFile: string;
@@ -44,8 +58,9 @@ export function buildAnalysisCommand(
   // Video filter chain
   const videoFilters: string[] = [];
 
-  if (filters.scene_changes) {
-    videoFilters.push("scdet=threshold=10");
+  const scdetThreshold = sceneChangeThreshold(filters.scene_changes);
+  if (scdetThreshold !== null) {
+    videoFilters.push(`scdet=threshold=${scdetThreshold}`);
   }
   if (filters.black_intervals) {
     videoFilters.push("blackdetect=d=0.1:pic_th=0.98:pix_th=0.10");
@@ -110,22 +125,26 @@ export function buildAnalysisCommand(
 // Parser functions
 // ---------------------------------------------------------------------------
 
-export function parseScdetOutput(stderr: string): SceneChange[] {
+export function parseScdetOutput(stderr: string, threshold: number = DEFAULT_SCDET_THRESHOLD): SceneChange[] {
   const results: SceneChange[] = [];
-  const re = /lavfi\.scd\.score=([\d.]+)\s+lavfi\.scd\.time=([\d.]+)/g;
+  // Older builds log `score=X time=Y`; current ones log `score: X, time: Y`.
+  const re = /lavfi\.scd\.score[=:]\s*([\d.]+),?\s+lavfi\.scd\.time[=:]\s*([\d.]+)/g;
   let match: RegExpExecArray | null;
 
   while ((match = re.exec(stderr)) !== null) {
-    results.push({
-      score: parseFloat(match[1]),
-      time: formatHMS(parseFloat(match[2])),
-    });
+    const score = parseFloat(match[1]);
+    if (score >= threshold) {
+      results.push({
+        score,
+        time: formatHMS(parseFloat(match[2])),
+      });
+    }
   }
 
   return results;
 }
 
-export function parseScdetFromMetaFile(content: string, threshold: number = 2): SceneChange[] {
+export function parseScdetFromMetaFile(content: string, threshold: number = DEFAULT_SCDET_THRESHOLD): SceneChange[] {
   const results: SceneChange[] = [];
   let currentPtsTime: number | null = null;
 
