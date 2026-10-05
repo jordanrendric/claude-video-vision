@@ -16,6 +16,9 @@ import {
   parseSitiOutput,
   parseEbur128Output,
   deriveContentProfile,
+  analysisTimeoutMs,
+  parseFfmpegProgressTime,
+  runAnalysisCommand,
 } from "../../src/extractors/analyzers.js";
 import type { AnalysisFilters } from "../../src/types.js";
 
@@ -429,5 +432,75 @@ describe("deriveContentProfile", () => {
     const profile = deriveContentProfile(undefined, 40);
     expect(profile).toContain("unknown visual complexity");
     expect(profile).toContain("high motion");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Long-source handling (#47)
+// ---------------------------------------------------------------------------
+
+describe("analysisTimeoutMs", () => {
+  it("never goes below 10 minutes", () => {
+    expect(analysisTimeoutMs(60)).toBe(600_000);
+  });
+
+  it("allows twice the video duration for long sources", () => {
+    // 2001: A Space Odyssey, 148:49 — killed at the flat 10-minute timeout.
+    expect(analysisTimeoutMs(8929.363)).toBe(17_859_000);
+  });
+});
+
+describe("parseFfmpegProgressTime", () => {
+  it("returns the last progress timestamp in seconds", () => {
+    const stderr =
+      "frame= 1765 fps=0.0 q=-0.0 size=N/A time=00:00:59.02 bitrate=N/A speed= 117x\r" +
+      "frame= 5358 fps=3541 q=-0.0 size=N/A time=01:08:52.81 bitrate=N/A speed= 118x\r";
+    expect(parseFfmpegProgressTime(stderr)).toBeCloseTo(4132.81);
+  });
+
+  it("returns null when no progress was reported", () => {
+    expect(parseFfmpegProgressTime("frame=    0 fps=0.0 q=0.0 size=N/A time=N/A bitrate=N/A")).toBeNull();
+  });
+});
+
+describe("runAnalysisCommand", () => {
+  it("runs ffmpeg with a duration-scaled timeout and returns its stderr", async () => {
+    const calls: unknown[] = [];
+    const exec = async (file: string, args: string[], options: { timeout: number }) => {
+      calls.push({ file, args, timeout: options.timeout });
+      return { stdout: "", stderr: "all good" };
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 8929.363, exec);
+
+    expect(calls).toEqual([{ file: "ffmpeg", args: ["-i", "v.mkv"], timeout: 17_859_000 }]);
+    expect(run).toEqual({ stderr: "all good" });
+  });
+
+  it("keeps the stderr of a non-zero exit, as filters still report results", async () => {
+    const exec = async () => {
+      throw Object.assign(new Error("exit 1"), { killed: false, code: 1, stderr: "partial but complete" });
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 60, exec);
+
+    expect(run).toEqual({ stderr: "partial but complete" });
+  });
+
+  it("flags the analysis as incomplete when ffmpeg is killed by the timeout", async () => {
+    const exec = async () => {
+      throw Object.assign(new Error("killed"), {
+        killed: true,
+        code: 255,
+        stderr: "frame= 99 fps=7 size=N/A time=01:08:52.40 bitrate=N/A speed=6.9x\r",
+      });
+    };
+
+    const run = await runAnalysisCommand(["-i", "v.mkv"], 8929.363, exec);
+
+    expect(run.incomplete).toEqual({
+      analyzed_until: "01:08:52",
+      reason: expect.stringContaining("timed out"),
+    });
   });
 });

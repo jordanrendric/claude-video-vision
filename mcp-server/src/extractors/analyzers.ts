@@ -1,6 +1,10 @@
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { join } from "path";
-import type { AnalysisFilters, SceneChange, Interval } from "../types.js";
+import type { AnalysisFilters, AnalysisIncomplete, SceneChange, Interval } from "../types.js";
 import { formatHMS } from "../utils/timestamps.js";
+
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Command builder
@@ -119,6 +123,78 @@ export function buildAnalysisCommand(
   args.push("-f", "null", "-");
 
   return { args, videoMetaFile };
+}
+
+// ---------------------------------------------------------------------------
+// Runner
+// ---------------------------------------------------------------------------
+
+const MIN_ANALYSIS_TIMEOUT_MS = 600_000;
+
+/**
+ * A single ffmpeg pass decodes the whole source, so long or high-resolution
+ * files (e.g. a 2.5h UHD HEVC remux) need far more than a flat 10 minutes.
+ * Allow processing as slow as 0.5x realtime before giving up.
+ */
+export function analysisTimeoutMs(durationSeconds: number): number {
+  return Math.max(MIN_ANALYSIS_TIMEOUT_MS, Math.ceil(durationSeconds * 2) * 1000);
+}
+
+/** Last `time=HH:MM:SS.xx` progress stamp ffmpeg wrote to stderr, in seconds. */
+export function parseFfmpegProgressTime(stderr: string): number | null {
+  const re = /time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/g;
+  let last: number | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(stderr)) !== null) {
+    last = parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseFloat(match[3]);
+  }
+
+  return last;
+}
+
+type ExecFn = (
+  file: string,
+  args: string[],
+  options: { timeout: number; maxBuffer: number },
+) => Promise<{ stdout: string; stderr: string }>;
+
+export interface AnalysisRun {
+  stderr: string;
+  incomplete?: AnalysisIncomplete;
+}
+
+/**
+ * Runs the analysis command. A non-zero exit is tolerated (filters still
+ * report on stderr), but a timeout kill is reported as `incomplete`: ffmpeg
+ * flushes its metadata on SIGTERM, so a killed run otherwise looks like a
+ * complete analysis that simply found nothing after the cut-off point.
+ */
+export async function runAnalysisCommand(
+  args: string[],
+  durationSeconds: number,
+  exec: ExecFn = execFileAsync,
+): Promise<AnalysisRun> {
+  const timeout = analysisTimeoutMs(durationSeconds);
+
+  try {
+    const { stderr } = await exec("ffmpeg", args, { timeout, maxBuffer: 100 * 1024 * 1024 });
+    return { stderr };
+  } catch (err: any) {
+    const stderr: string = err.stderr || "";
+    if (!err.killed) return { stderr };
+
+    const progress = parseFfmpegProgressTime(stderr);
+    return {
+      stderr,
+      incomplete: {
+        analyzed_until: formatHMS(progress ?? 0),
+        reason:
+          `ffmpeg analysis timed out after ${Math.round(timeout / 60_000)} min; ` +
+          "results are complete up to analyzed_until; anything after it is missing or partial.",
+      },
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------

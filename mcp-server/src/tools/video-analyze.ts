@@ -1,5 +1,3 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
 import { z } from "zod";
 import { join } from "path";
 import { homedir } from "os";
@@ -21,6 +19,7 @@ import {
   buildAnalysisCommand,
   DEFAULT_SCDET_THRESHOLD,
   sceneChangeThreshold,
+  runAnalysisCommand,
   parseScdetOutput,
   parseScdetFromMetaFile,
   parseBlackdetectOutput,
@@ -41,7 +40,6 @@ import {
 import { createManifest } from "../session/manifest.js";
 import type { AnalysisFilters, VideoAnalysis, AudioResult } from "../types.js";
 
-const execFileAsync = promisify(execFile);
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
 const SESSIONS_DIR = join(homedir(), ".claude-video-vision", "sessions");
@@ -61,7 +59,7 @@ export const sceneChangesSchema = z
 export function registerVideoAnalyze(server: McpServer): void {
   server.tool(
     "video_analyze",
-    "Analyze local video file or YouTube URL structure using ffmpeg filters. Returns scene changes, silence intervals, motion levels, and more. Use this before video_watch to plan which segments need detailed frame extraction. Does not extract frames. When transcription is enabled and the video is longer than the configured chunk trigger, the audio is chunked and transcribed in parallel; the result's `analysis.audio_warnings` array (when present) describes chunk-boundary decisions, retries, or failures — surface these to the user.",
+    "Analyze local video file or YouTube URL structure using ffmpeg filters. Returns scene changes, silence intervals, motion levels, and more. Use this before video_watch to plan which segments need detailed frame extraction. Does not extract frames. When transcription is enabled and the video is longer than the configured chunk trigger, the audio is chunked and transcribed in parallel; the result's `analysis.audio_warnings` array (when present) describes chunk-boundary decisions, retries, or failures — surface these to the user. If `analysis.incomplete` is present, the ffmpeg pass stopped early and filter results only cover the source up to `analysis.incomplete.analyzed_until` — tell the user instead of treating later sections as empty.",
     {
       path: z.string().describe("Absolute/relative path to the video file, or a YouTube URL"),
       filters: z.object({
@@ -130,16 +128,11 @@ export function registerVideoAnalyze(server: McpServer): void {
         let stderr = "";
 
         if (cmd !== null) {
-          // 4. Run ffmpeg — wrap in try/catch because some filter combos yield non-zero exit
-          try {
-            const result = await execFileAsync("ffmpeg", cmd.args, {
-              timeout: 600_000,
-              maxBuffer: 100 * 1024 * 1024,
-            });
-            stderr = result.stderr;
-          } catch (err: any) {
-            // Many filters still produce valid output on stderr even when ffmpeg exits non-zero
-            stderr = err.stderr || "";
+          // 4. Run ffmpeg (tolerates non-zero exits; flags a timeout as incomplete)
+          const run = await runAnalysisCommand(cmd.args, metadata.duration_seconds);
+          stderr = run.stderr;
+          if (run.incomplete) {
+            analysis.incomplete = run.incomplete;
           }
 
           // 5. Parse scene changes from metadata file (scdet writes to frame metadata, not stderr)

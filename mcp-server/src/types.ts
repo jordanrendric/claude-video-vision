@@ -121,7 +121,14 @@ export interface VideoAnalysis {
   loudness_summary?: { mean_lufs: number; range_lu: number };
   transcription?: TranscriptionSegment[];
   audio_warnings?: ChunkWarning[];
+  /** Set when the ffmpeg pass stopped early: filter results only cover up to `analyzed_until`. */
+  incomplete?: AnalysisIncomplete;
   content_profile: string;
+}
+
+export interface AnalysisIncomplete {
+  analyzed_until: string;
+  reason: string;
 }
 
 export interface SessionManifest {
