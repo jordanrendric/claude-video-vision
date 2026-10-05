@@ -1,5 +1,43 @@
-import { describe, it, expect } from "vitest";
-import { deriveFps } from "../../src/tools/video-watch.js";
+import { describe, it, expect, afterEach } from "vitest";
+import { join } from "path";
+import { tmpdir } from "os";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { deriveFps, persistFramesToSession } from "../../src/tools/video-watch.js";
+import { createManifest } from "../../src/session/manifest.js";
+
+describe("persistFramesToSession", () => {
+  let root: string;
+
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("copies each frame to a timestamp-named file and indexes that copy", () => {
+    root = mkdtempSync(join(tmpdir(), "cvv-persist-test-"));
+    const sessionDir = join(root, "session");
+    // Two segments extracted separately: ffmpeg names both outputs frame_0001.
+    const segA = join(root, "work", "seg-a");
+    const segB = join(root, "work", "seg-b");
+    mkdirSync(segA, { recursive: true });
+    mkdirSync(segB, { recursive: true });
+    writeFileSync(join(segA, "frame_0001.png"), "frame-a");
+    writeFileSync(join(segB, "frame_0001.png"), "frame-b");
+
+    const manifest = persistFramesToSession(createManifest("hash", "/video.mp4"), sessionDir, "png", [
+      { timestamp: "00:01:29", resolution: 256, sourcePath: join(segA, "frame_0001.png") },
+      { timestamp: "00:01:33", resolution: 256, sourcePath: join(segB, "frame_0001.png") },
+    ]);
+    rmSync(join(root, "work"), { recursive: true, force: true });
+
+    const resDir = join(sessionDir, "frames", "png", "256");
+    expect(manifest.resolutions["256/png"].frames).toEqual([
+      { timestamp: "00:01:29", file: join(resDir, "00-01-29.png") },
+      { timestamp: "00:01:33", file: join(resDir, "00-01-33.png") },
+    ]);
+    expect(readFileSync(join(resDir, "00-01-29.png"), "utf8")).toBe("frame-a");
+    expect(readFileSync(join(resDir, "00-01-33.png"), "utf8")).toBe("frame-b");
+  });
+});
 
 describe("deriveFps", () => {
   it("respects explicit numeric fps", () => {

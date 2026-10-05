@@ -25,7 +25,7 @@ import {
 } from "../utils/video-source.js";
 import { getSessionDir, loadManifest, saveManifest, computeVideoHash } from "../session/manager.js";
 import { createManifest, frameCacheKey, mergeFrames, sampleFrameIndices } from "../session/manifest.js";
-import type { AudioResult, VideoWatchResult, Frame, Segment, SessionManifest } from "../types.js";
+import type { AudioResult, VideoWatchResult, Frame, FrameFormat, Segment, SessionManifest } from "../types.js";
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
 
@@ -44,6 +44,41 @@ Available backends:
 
 function timestampToFormattedFilename(timestamp: string, extension: string): string {
   return `${timestamp.replace(/:/g, "-")}.${extension}`;
+}
+
+/**
+ * Copies extracted frames into the session cache under stable,
+ * timestamp-keyed filenames and indexes those copies in the manifest.
+ * ffmpeg's frame_XXXX names restart on every run, so they must never be
+ * referenced from the manifest directly.
+ */
+export function persistFramesToSession(
+  manifest: SessionManifest,
+  sessionDir: string,
+  frameFormat: FrameFormat,
+  frames: { timestamp: string; resolution: number | string; sourcePath?: string }[],
+): SessionManifest {
+  const extension = frameFormatExtension(frameFormat);
+  const entriesByCacheKey = new Map<string, { timestamp: string; file: string }[]>();
+
+  for (const frame of frames) {
+    if (!frame.sourcePath) continue;
+
+    const resDir = join(sessionDir, "frames", frameFormat, String(frame.resolution));
+    mkdirSync(resDir, { recursive: true });
+    const filePath = join(resDir, timestampToFormattedFilename(frame.timestamp, extension));
+    copyFileSync(frame.sourcePath, filePath);
+
+    const cacheKey = frameCacheKey(frame.resolution, frameFormat);
+    const entries = entriesByCacheKey.get(cacheKey) ?? [];
+    entries.push({ timestamp: frame.timestamp, file: filePath });
+    entriesByCacheKey.set(cacheKey, entries);
+  }
+
+  for (const [cacheKey, entries] of entriesByCacheKey) {
+    manifest = mergeFrames(manifest, cacheKey, entries);
+  }
+  return manifest;
 }
 
 export interface DeriveFpsParams {
@@ -99,7 +134,6 @@ export function registerVideoWatch(server: McpServer): void {
       const resolved = await resolveVideoInputDetailed(params.path);
       const safePath = resolved.path;
       const frameFormat = params.frame_format || config.frame_format;
-      const frameExtension = frameFormatExtension(frameFormat);
       const frameMimeType = frameFormatMimeType(frameFormat);
 
       // Session support
@@ -144,18 +178,9 @@ export function registerVideoWatch(server: McpServer): void {
       let framesPromise: Promise<Frame[]>;
 
       if (params.segments && params.segments.length > 0) {
-        const extractDir = useSession ? join(sessionDir!, "frames", frameFormat) : join(workDir, "frames");
-        framesPromise = extractFramesBySegments(safePath, params.segments as Segment[], extractDir, frameFormat).then((segmentFrames) => {
-          if (useSession && manifest) {
-            for (const frame of segmentFrames) {
-              if (!frame.sourcePath) continue;
-
-              const res = String(frame.resolution);
-              const cacheKey = frameCacheKey(res, frameFormat);
-              manifest = mergeFrames(manifest!, cacheKey, [
-                { timestamp: frame.timestamp, file: frame.sourcePath },
-              ]);
-            }
+        framesPromise = extractFramesBySegments(safePath, params.segments as Segment[], framesDir, frameFormat).then((segmentFrames) => {
+          if (useSession && manifest && sessionDir) {
+            manifest = persistFramesToSession(manifest, sessionDir, frameFormat, segmentFrames);
           }
           return segmentFrames;
         });
@@ -170,20 +195,12 @@ export function registerVideoWatch(server: McpServer): void {
           maxFrames: config.max_frames,
         }).then((extractedFrames) => {
           if (useSession && manifest && sessionDir) {
-            const cacheKey = frameCacheKey(resolution, frameFormat);
-            const resDir = join(sessionDir, "frames", frameFormat, String(resolution));
-            mkdirSync(resDir, { recursive: true });
-
-            const manifestEntries: { timestamp: string; file: string }[] = [];
-            for (const frame of extractedFrames) {
-              if (!frame.sourcePath) continue;
-
-              const filePath = join(resDir, timestampToFormattedFilename(frame.timestamp, frameExtension));
-              copyFileSync(frame.sourcePath, filePath);
-              manifestEntries.push({ timestamp: frame.timestamp, file: filePath });
-            }
-
-            manifest = mergeFrames(manifest, cacheKey, manifestEntries);
+            manifest = persistFramesToSession(
+              manifest,
+              sessionDir,
+              frameFormat,
+              extractedFrames.map((frame) => ({ ...frame, resolution })),
+            );
           }
 
           return extractedFrames;

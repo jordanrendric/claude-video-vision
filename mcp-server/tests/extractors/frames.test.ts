@@ -91,5 +91,18 @@ describe("frame extraction", () => {
       expect(result[0].format).toBe("png");
       expect(files.some((file) => file.endsWith(".png"))).toBe(true);
     });
+
+    it("treats endTime as an absolute timestamp, not a duration from startTime", async () => {
+      // 00:00:01 → 00:00:02 at 1 fps is a 1-second window: exactly one frame.
+      // If endTime were read as a duration it would cover 1s → 3s (two frames).
+      const result = await extractFrames(FIXTURE, {
+        fps: 1,
+        resolution: 256,
+        outputDir: OUT_DIR,
+        startTime: "00:00:01",
+        endTime: "00:00:02",
+      });
+      expect(result.map((f) => f.timestamp)).toEqual(["00:00:01"]);
+    });
   });
 });

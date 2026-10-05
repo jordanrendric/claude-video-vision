@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFileSync, readdirSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync, existsSync } from "fs";
 import { join } from "path";
 import type { VideoMetadata, Frame, FrameFormat, Segment } from "../types.js";
 import { formatHMS, parseHMS } from "../utils/timestamps.js";
@@ -117,8 +117,11 @@ export async function extractFrames(
 
   args.push("-i", videoPath);
 
+  // With -ss as an input option ffmpeg resets timestamps to 0, so an output
+  // -to would act as a duration. Pass the window length explicitly instead.
   if (endTime) {
-    args.push("-to", endTime);
+    const durationSeconds = parseHMS(endTime) - (startTime ? parseHMS(startTime) : 0);
+    args.push("-t", String(durationSeconds));
   }
 
   args.push(
@@ -192,8 +195,10 @@ export function generateTimestampsForSegment(segment: Segment): string[] {
 
 /**
  * Extracts frames for an ordered list of segments, each potentially at a
- * different resolution and fps.  Frames from each segment are written into a
- * sub-directory named after their resolution so they never collide.
+ * different resolution and fps.  Each segment is written into its own fresh
+ * sub-directory (under one named after its resolution): ffmpeg numbers output
+ * from frame_0001 on every run, and extractFrames returns every frame_* file
+ * in its output directory, so a shared directory would mix segments together.
  */
 export async function extractFramesBySegments(
   videoPath: string,
@@ -208,11 +213,12 @@ export async function extractFramesBySegments(
     const resDir = join(baseOutputDir, String(resolution));
 
     if (!existsSync(resDir)) mkdirSync(resDir, { recursive: true });
+    const segmentDir = mkdtempSync(join(resDir, "seg-"));
 
     const frames = await extractFrames(videoPath, {
       fps: segment.fps,
       resolution,
-      outputDir: resDir,
+      outputDir: segmentDir,
       format,
       startTime: segment.start,
       endTime: segment.end,
