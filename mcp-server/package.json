@@ -33,7 +33,7 @@
     "js-tiktoken": "^1.0.21",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.5"
+    "vitest": "^5.0.3"
   },
   "optionalDependencies": {
     "@google/genai": "^1.50.1",
