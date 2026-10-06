@@ -8,6 +8,11 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # Keep the Node typings on the minimum supported runtime (engines.node),
+      # so code can't type-check against APIs that older supported Nodes lack.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

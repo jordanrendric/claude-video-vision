@@ -121,7 +121,7 @@ Claude adapts parameters automatically:
 
 ## Requirements
 
-- **Node.js 20+** (for the MCP server)
+- **Node.js 24+** (for the MCP server)
 - **ffmpeg** (auto-detected, install instructions provided by setup wizard)
 - **yt-dlp** (optional, required only for YouTube URLs; `brew install yt-dlp` on macOS)
 - **Backend-specific**:
@@ -197,7 +197,7 @@ The plugin starts its MCP server with `npx -y claude-video-vision@latest`. If `c
 
    Both versions should match (7 or newer), and `where.exe npx` should point to `npx.cmd` inside your Node.js install directory.
 
-2. **Fix it** by updating npm (`npm install -g npm@latest`) or reinstalling Node.js 20+ LTS, then restart Claude Code.
+2. **Fix it** by updating npm (`npm install -g npm@latest`) or reinstalling Node.js 24+ LTS, then restart Claude Code.
 
 3. **Workaround** if it still fails: install the server globally and register it yourself.
 
