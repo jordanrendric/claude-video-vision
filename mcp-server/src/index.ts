@@ -15,7 +15,7 @@ import { cleanExpiredDownloads, getDownloadsDir } from "./utils/video-source.js"
 
 const server = new McpServer({
   name: "claude-video-vision",
-  version: "1.2.0",
+  version: "1.4.0",
 });
 
 registerVideoWatch(server);

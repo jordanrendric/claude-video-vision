@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-05
+
+### Changed
+
+- **Node.js 24 LTS is now the minimum** (`engines.node: >=24`). Node 20 reached end-of-life on 2026-04-30. CI runs on Node 24 and 26. Users on Node 22 will see an `EBADENGINE` warning from `npx`.
+- **`video_analyze` scene detection defaults to a scdet score of 8 (was 2).** Scores below 8 are mostly handheld motion and fast pans, not cuts, so `scene_changes: true` now returns far fewer and more accurate scenes. Pass `scene_changes: { threshold: 2 }` to get the old behavior back (#45).
+- **Dependencies:** `openai` 4 → 7, `@google/genai` 1 → 2, `zod` 3 → 4, `@modelcontextprotocol/sdk` 1.29 → 1.32, TypeScript 5 → 7. No changes to tool schemas or backend behavior.
+- Tool descriptions now state that `start_time` / `end_time` and segment `start` / `end` are absolute timestamps, not durations (#35).
+
+### Added
+
+- **`scene_changes: { threshold: N }`** on `video_analyze` (0–100) to tune scene detection per call (#45).
+- **`analysis.incomplete`** on `video_analyze`: when the ffmpeg pass stops early, the result says how far the analysis got (`analyzed_until`) instead of silently returning partial data (#47).
+- README troubleshooting section for the Windows `Unknown command: "claude-video-vision@latest"` MCP startup failure.
+
+### Fixed
+
+- **`video_watch` / `video_detail` time ranges:** `end_time` and segment `end` were read by ffmpeg as a *duration* from the start time, so a `01:29 → 01:30` segment extracted 90 seconds of frames. Segments also shared one output directory, mixing frames between segments and with stale files. Each segment now returns exactly its own frames (#46).
+- **`video_analyze` truncated long videos:** the single ffmpeg pass had a flat 10-minute timeout, so on long or 4K sources it was killed mid-file and the partial result was returned as if complete (e.g. no scenes after 01:09 in a 2.5h film). The timeout now scales with the video length, and an early stop is reported via `analysis.incomplete` (#47).
+- **`video_analyze` stderr fallback** never matched the `score: X, time: Y` log format of current ffmpeg builds; it now parses both formats, and the scdet filter and both parsers use the same threshold (#45).
+- **Session cache:** with `enable_index`, `video_watch` segments stored raw `frame_XXXX` paths in the manifest, which later runs overwrote. Frames are now cached under timestamp-named files (#46).
+- `video_watch` now always removes its temporary `/tmp/cvv-*` work dir, including when session indexing is on and when extraction fails.
+- Security: transitive dependency updates clear all runtime `npm audit` findings (1 critical, 4 high).
+
+### Upgrade notes
+
+- If you used `video_watch` with `segments` and `enable_index: true` before this release, your session cache may point to wrong frames. Clear it with `video_configure` → `clear_sessions`, or delete `~/.claude-video-vision/sessions/`.
+
+## [1.3.2] - 2026-05-18
+
+### Fixed
+
+- **whisper.cpp backend:** transcripts were parsed from stdout instead of the JSON file `--output-json` writes, so every transcription collapsed into a single segment at `00:00:00`. Voice activity detection is now enabled to stop hallucinated dialogue on silent or music-only audio (#40, #42).
+- **Windows:** `video_analyze` returned empty `scenes` / `frame_stats` because the drive-letter path in the lavfi metadata filter wasn't escaped (#43, #44).
+
+## [1.3.1] - 2026-05-11
+
+### Added
+
+- **`frame_format`** config and per-call option (`jpeg` | `png` | `webp`) on `video_watch` and `video_detail`. JPEG stays the default; PNG keeps screen recordings lossless. The session cache is keyed by format (#34).
+
+## [1.3.0] - 2026-05-08
+
+### Added
+
+- **YouTube URLs** are accepted anywhere a video `path` is. Videos are downloaded and cached with `yt-dlp`. Transcripts come from manual subtitles, then auto-captions, then the configured backend, labeled with `transcription_source` (#26).
+- **Gemini audio chunking:** long audio is split at silence-aware boundaries and transcribed in parallel with retries. Chunk decisions and failures are reported in `audio.warnings` / `analysis.audio_warnings`.
+- New config fields: `audio_model`, `max_output_tokens`, `audio_chunk_trigger_seconds`, `audio_chunk_size_seconds`, `audio_chunk_overlap_seconds`.
+
+### Fixed
+
+- `video_analyze` returned no `silence_intervals` because an `ametadata` sink in the audio chain swallowed silencedetect's events (#27).
+- `video_watch` with `view_sample` on long videos only covered the first ~25% of the video; fps is now derived from `view_sample` to span the full duration (#28).
+- Audio extraction with a non-zero start time no longer includes pre-roll from before the requested start.
+
 ## [1.2.1] - 2026-04-26
 
 ### Fixed

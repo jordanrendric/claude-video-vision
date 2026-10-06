@@ -210,7 +210,7 @@ The plugin starts its MCP server with `npx -y claude-video-vision@latest`. If `c
 
 ## Status
 
-**v1.0.0** — Initial release. Tested on macOS (Apple Silicon) with Local backend (whisper.cpp).
+**v1.4.0** — see the [CHANGELOG](./CHANGELOG.md) for release history. CI runs on Ubuntu and macOS with Node.js 24 and 26.
 
 ## License
 
