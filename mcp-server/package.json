@@ -36,7 +36,7 @@
     "vitest": "^5.0.3"
   },
   "optionalDependencies": {
-    "@google/genai": "^1.50.1",
+    "@google/genai": "^2.27.0",
     "openai": "^4.80.0"
   },
   "keywords": [
