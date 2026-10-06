@@ -32,7 +32,7 @@
     "@types/node": "^24.19.1",
     "js-tiktoken": "^1.0.21",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.3"
   },
   "optionalDependencies": {
