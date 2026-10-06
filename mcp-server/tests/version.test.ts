@@ -28,7 +28,7 @@ describe("release version", () => {
 
   it("matches the version the MCP server advertises", () => {
     const index = readFileSync(join(ROOT, "mcp-server/src/index.ts"), "utf8");
-    expect(index).toMatch(new RegExp(`version: "${version.replace(/\./g, "\\.")}"`));
+    expect(index).toContain(`version: "${version}"`);
   });
 
   it("matches the README status section", () => {
