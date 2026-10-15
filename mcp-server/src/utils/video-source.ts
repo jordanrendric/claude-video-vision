@@ -216,33 +216,46 @@ async function downloadYouTubeVideo(url: string): Promise<string> {
   }
 }
 
-function chooseCaptionTrack(data: Record<string, unknown>): YouTubeCaptionTrackMetadata | null {
+function findCaptionLanguage(
+  tracks: Record<string, unknown> | undefined,
+  preferredLanguages: string[],
+  baseLanguage: string,
+): string | null {
+  for (const language of preferredLanguages) {
+    if (tracks?.[language]) return language;
+  }
+
+  for (const language of Object.keys(tracks ?? {})) {
+    if (language === baseLanguage || language.startsWith(`${baseLanguage}-`)) return language;
+  }
+
+  return null;
+}
+
+export function chooseCaptionTrack(data: Record<string, unknown>): YouTubeCaptionTrackMetadata | null {
   const subtitles = data.subtitles as Record<string, unknown> | undefined;
   const automaticCaptions = data.automatic_captions as Record<string, unknown> | undefined;
 
-  const preferredLanguages = ["en", "en-orig", "en-US", "en-GB"];
-
-  for (const language of preferredLanguages) {
-    if (subtitles?.[language]) {
-      return { source: "subtitles", language };
-    }
+  // Prefer the video's original language (yt-dlp `language`), then English.
+  // Otherwise a non-English video gets YouTube's machine translation to English.
+  const languagePreferences = [{ preferred: ["en", "en-orig", "en-US", "en-GB"], base: "en" }];
+  const originalLanguage = typeof data.language === "string" ? data.language : "";
+  const originalBase = originalLanguage.split("-")[0];
+  if (originalBase && originalBase !== "en") {
+    const preferred = [originalLanguage, `${originalLanguage}-orig`];
+    if (originalBase !== originalLanguage) preferred.push(originalBase, `${originalBase}-orig`);
+    languagePreferences.unshift({ preferred, base: originalBase });
   }
 
-  for (const language of Object.keys(subtitles ?? {})) {
-    if (language.startsWith("en")) {
-      return { source: "subtitles", language };
-    }
-  }
+  const sources = [
+    ["subtitles", subtitles],
+    ["automatic_captions", automaticCaptions],
+  ] as const;
 
-  for (const language of preferredLanguages) {
-    if (automaticCaptions?.[language]) {
-      return { source: "automatic_captions", language };
-    }
-  }
-
-  for (const language of Object.keys(automaticCaptions ?? {})) {
-    if (language.startsWith("en")) {
-      return { source: "automatic_captions", language };
+  for (const [source, tracks] of sources) {
+    for (const { preferred, base } of languagePreferences) {
+      const language = findCaptionLanguage(tracks, preferred, base);
+      if (language) return { source, language };
     }
   }
 

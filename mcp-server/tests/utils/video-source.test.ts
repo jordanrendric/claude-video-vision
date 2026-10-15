@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import {
   buildCaptionAudioResult,
+  chooseCaptionTrack,
   cleanExpiredDownloads,
   getCaptionFallbackReason,
   isYouTubeUrl,
@@ -106,5 +107,81 @@ discipline &amp; the one nobody is building for yet.
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("YouTube caption track selection", () => {
+  // Shape of a yt-dlp --dump-single-json caption entry; only the keys matter here.
+  const track = [{ ext: "vtt", url: "https://www.youtube.com/api/timedtext" }];
+
+  it("prefers the video's original language over English auto-translations", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "it",
+        subtitles: {},
+        automatic_captions: { "en-orig": track, en: track, fr: track, it: track, "it-orig": track },
+      }),
+    ).toEqual({ source: "automatic_captions", language: "it" });
+  });
+
+  it("uses the <lang>-orig auto captions when the plain language key is missing", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "it",
+        automatic_captions: { en: track, "it-orig": track },
+      }),
+    ).toEqual({ source: "automatic_captions", language: "it-orig" });
+  });
+
+  it("matches regional variants of the original language", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "it",
+        subtitles: { "it-IT": track },
+        automatic_captions: { en: track },
+      }),
+    ).toEqual({ source: "subtitles", language: "it-IT" });
+  });
+
+  it("checks manual subtitles before automatic captions", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "it",
+        subtitles: { en: track },
+        automatic_captions: { it: track, "it-orig": track },
+      }),
+    ).toEqual({ source: "subtitles", language: "en" });
+  });
+
+  it("falls back to English when the original language has no captions", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "it",
+        automatic_captions: { de: track, en: track },
+      }),
+    ).toEqual({ source: "automatic_captions", language: "en" });
+  });
+
+  it("keeps English selection unchanged for English videos", () => {
+    expect(
+      chooseCaptionTrack({
+        language: "en",
+        subtitles: {},
+        automatic_captions: { "en-orig": track, en: track, it: track },
+      }),
+    ).toEqual({ source: "automatic_captions", language: "en" });
+  });
+
+  it("keeps English selection when yt-dlp reports no original language", () => {
+    expect(
+      chooseCaptionTrack({
+        automatic_captions: { it: track, en: track },
+      }),
+    ).toEqual({ source: "automatic_captions", language: "en" });
+  });
+
+  it("returns null when the video has no captions", () => {
+    expect(chooseCaptionTrack({ language: "it", subtitles: {}, automatic_captions: {} })).toBeNull();
+    expect(chooseCaptionTrack({ language: "it" })).toBeNull();
   });
 });
