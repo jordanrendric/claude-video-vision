@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **ElevenLabs Scribe backend** (`backend: "elevenlabs"`). Transcribes with `scribe_v2` (configurable via `elevenlabs_model`), groups word-level timestamps into segments at pauses and sentence ends, and returns non-speech events such as laughter as `audio_tags`. Requires `ELEVENLABS_API_KEY`. Retries on HTTP 429/5xx, honoring `Retry-After`.
+
 ## [1.4.0] - 2026-10-05
 
 ### Changed

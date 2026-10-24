@@ -18,6 +18,8 @@ Ask the user:
 >
 > **c) OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY. Paid per usage.
 >
+> **d) ElevenLabs Scribe** — Word-level timestamps and audio events (laughter, applause), strong on non-English speech. Requires ELEVENLABS_API_KEY. Paid per usage.
+>
 > All backends use ffmpeg to extract video frames — Claude sees the frames directly.
 
 After the user answers, call `video_configure` with the chosen `backend`.

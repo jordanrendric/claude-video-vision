@@ -1,4 +1,4 @@
-export type Backend = "gemini-api" | "local" | "openai" | "youtube-captions" | "unconfigured" | "none";
+export type Backend = "gemini-api" | "local" | "openai" | "elevenlabs" | "youtube-captions" | "unconfigured" | "none";
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
@@ -24,6 +24,7 @@ export interface Config {
   audio_chunk_trigger_seconds: number;
   audio_chunk_size_seconds: number;
   audio_chunk_overlap_seconds: number; // reserved: dedup post-processor TBD; default 0 = no overlap
+  elevenlabs_model: string;
 }
 
 export interface VideoMetadata {
