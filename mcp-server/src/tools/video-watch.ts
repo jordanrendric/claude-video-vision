@@ -17,6 +17,7 @@ import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
+import { transcribeWithElevenLabs } from "../backends/elevenlabs.js";
 import { parseHMS, shiftAudioResult } from "../utils/timestamps.js";
 import {
   buildCaptionAudioResult,
@@ -40,7 +41,8 @@ Please run **/setup-video-vision** to configure the plugin before using it.
 Available backends:
 - **Gemini API** — Best quality. Analyzes audio natively. Free tier: 1500 req/day. Requires GEMINI_API_KEY.
 - **Local (Whisper)** — Free, fully offline. Requires whisper.cpp or openai-whisper installed.
-- **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.`;
+- **OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY.
+- **ElevenLabs Scribe** — Word-level timestamps and audio events, strong on non-English speech. Requires ELEVENLABS_API_KEY.`;
 
 function timestampToFormattedFilename(timestamp: string, extension: string): string {
   return `${timestamp.replace(/:/g, "-")}.${extension}`;
@@ -235,6 +237,12 @@ export function registerVideoWatch(server: McpServer): void {
             startTime: params.start_time,
             endTime: params.end_time,
           }).then((wavPath) => transcribeWithOpenAI(wavPath));
+        } else if (config.backend === "elevenlabs") {
+          const audioDir = join(workDir, "audio");
+          audioPromise = extractAudio(safePath, audioDir, {
+            startTime: params.start_time,
+            endTime: params.end_time,
+          }).then((wavPath) => transcribeWithElevenLabs(wavPath, config.elevenlabs_model));
         } else {
           // local
           const audioDir = join(workDir, "audio");

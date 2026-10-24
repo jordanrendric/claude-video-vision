@@ -65,6 +65,14 @@ export async function checkDependencies(backend: Backend, whisperEngine?: Whispe
     }
   }
 
+  if (backend === "elevenlabs") {
+    if (!process.env.ELEVENLABS_API_KEY) {
+      missing.push("ELEVENLABS_API_KEY");
+      instructions.push("Set ELEVENLABS_API_KEY environment variable");
+      instructions.push("Get a key at: https://elevenlabs.io/app/settings/api-keys");
+    }
+  }
+
   if (missing.length === 0) {
     return { status: "ready", message: "All dependencies are installed.", missing: [], instructions: [] };
   }
