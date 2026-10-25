@@ -71,6 +71,13 @@ describe("config", () => {
     expect(config.audio_chunk_overlap_seconds).toBe(0);
   });
 
+  it("defaults vocabulary to an empty list and preserves it when set", () => {
+    const configPath = join(TEST_DIR, "config.json");
+    expect(loadConfig(configPath).vocabulary).toEqual([]);
+    writeFileSync(configPath, JSON.stringify({ vocabulary: ["CIGREF", "AFAI"] }));
+    expect(loadConfig(configPath).vocabulary).toEqual(["CIGREF", "AFAI"]);
+  });
+
   it("preserves audio_model override when set", () => {
     const configPath = join(TEST_DIR, "config.json");
     writeFileSync(configPath, JSON.stringify({ audio_model: "gemini-3.1-pro-preview" }));

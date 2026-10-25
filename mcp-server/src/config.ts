@@ -22,6 +22,7 @@ export const defaultConfig: Config = {
   audio_chunk_trigger_seconds: 1200,
   audio_chunk_size_seconds: 600,
   audio_chunk_overlap_seconds: 0,
+  vocabulary: [],
 };
 
 export function loadConfig(configPath: string): Config {

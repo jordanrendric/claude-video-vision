@@ -65,6 +65,14 @@ export async function checkDependencies(backend: Backend, whisperEngine?: Whispe
     }
   }
 
+  if (backend === "mistral") {
+    if (!process.env.MISTRAL_API_KEY) {
+      missing.push("MISTRAL_API_KEY");
+      instructions.push("Set MISTRAL_API_KEY environment variable");
+      instructions.push("Get a key at: https://console.mistral.ai/api-keys");
+    }
+  }
+
   if (missing.length === 0) {
     return { status: "ready", message: "All dependencies are installed.", missing: [], instructions: [] };
   }

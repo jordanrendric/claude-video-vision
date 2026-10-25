@@ -15,6 +15,9 @@ import { extractAudio } from "../extractors/audio.js";
 import { analyzeWithGeminiApi } from "../backends/gemini-api.js";
 import { transcribeWithWhisper } from "../backends/local.js";
 import { transcribeWithOpenAI } from "../backends/openai.js";
+import { transcribeWithMistral } from "../backends/mistral.js";
+import { resolveVocabulary } from "../utils/vocabulary.js";
+import { assertKnownBackend } from "../utils/backend-guard.js";
 import {
   buildAnalysisCommand,
   DEFAULT_SCDET_THRESHOLD,
@@ -231,6 +234,10 @@ export function registerVideoAnalyze(server: McpServer): void {
             const audioDir = join(workDir, "audio");
             const wavPath = await extractAudio(safePath, audioDir, {});
             audioResult = await transcribeWithOpenAI(wavPath);
+          } else if (config.backend === "mistral") {
+            const audioDir = join(workDir, "audio");
+            const wavPath = await extractAudio(safePath, audioDir, {});
+            audioResult = await transcribeWithMistral(wavPath, { vocabulary: resolveVocabulary(config.vocabulary) });
           } else if (config.backend === "local") {
             const audioDir = join(workDir, "audio");
             const modelDir = join(homedir(), ".claude-video-vision", "models");
@@ -240,8 +247,10 @@ export function registerVideoAnalyze(server: McpServer): void {
               model: config.whisper_model,
               whisperAt: config.whisper_at,
               modelDir,
+              vocabulary: resolveVocabulary(config.vocabulary),
             });
           } else {
+            assertKnownBackend(config.backend);
             // unconfigured or none — skip transcription gracefully
             audioResult = {
               backend: "none",

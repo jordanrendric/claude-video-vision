@@ -69,6 +69,15 @@ describe("transcribeWithWhisperPython arg construction", () => {
     expect(args).not.toContain("auto");
   });
 
+  it("does not send vocabulary as an initial prompt (measured to degrade output)", async () => {
+    await transcribeWithWhisper("/tmp/scratch/audio.wav", {
+      engine: "python", model: "small", whisperAt: false, modelDir: "",
+      vocabulary: ["CIGREF", "AFAI", "Anaplan"],
+    });
+    expect(execFileCalls[0].args).not.toContain("--initial_prompt");
+    expect(execFileCalls[0].args).not.toContain("--prompt");
+  });
+
   it("passes --output_dir set to dirname(wavPath)", async () => {
     await transcribeWithWhisper("/tmp/scratch/audio.wav", {
       engine: "python",

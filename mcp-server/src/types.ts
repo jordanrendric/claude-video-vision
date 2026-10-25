@@ -1,4 +1,4 @@
-export type Backend = "gemini-api" | "local" | "openai" | "youtube-captions" | "unconfigured" | "none";
+export type Backend = "gemini-api" | "local" | "openai" | "mistral" | "youtube-captions" | "unconfigured" | "none";
 export type WhisperEngine = "cpp" | "python";
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "auto";
 export type FrameMode = "images" | "descriptions";
@@ -24,6 +24,9 @@ export interface Config {
   audio_chunk_trigger_seconds: number;
   audio_chunk_size_seconds: number;
   audio_chunk_overlap_seconds: number; // reserved: dedup post-processor TBD; default 0 = no overlap
+  /** Domain vocabulary (acronyms, product and people names) passed to the
+   *  speech recognizer: Mistral `context_bias`, whisper.cpp `--prompt`. */
+  vocabulary: string[];
 }
 
 export interface VideoMetadata {
@@ -63,7 +66,7 @@ export interface AudioResult {
   transcription: TranscriptionSegment[];
   audio_tags: AudioTag[];
   full_analysis: string | null;
-  transcription_source?: "youtube_subtitles" | "youtube_auto_captions" | "gemini-api" | "local_whisper" | "openai" | "none";
+  transcription_source?: "youtube_subtitles" | "youtube_auto_captions" | "gemini-api" | "local_whisper" | "openai" | "mistral" | "none";
   transcription_source_detail?: string;
   transcription_fallback_reason?: string;
   warnings?: ChunkWarning[];

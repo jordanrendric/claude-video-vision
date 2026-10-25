@@ -30,6 +30,16 @@ export interface WhisperOptions {
   model: WhisperModel;
   whisperAt: boolean;
   modelDir: string;
+  /**
+   * Accepted for API symmetry with the Mistral backend but currently unused.
+   * Whisper's only hook is the initial prompt, which is a fake "previous
+   * segment" the model continues rather than a lexical bias. Feeding it a
+   * comma-separated word list was measured to degrade French transcription
+   * (longer segments, new mishearings) while fixing almost none of the target
+   * acronyms, so no prompt is sent. A natural-sentence prompt may behave
+   * better and is left as future work.
+   */
+  vocabulary?: string[];
 }
 
 export async function transcribeWithWhisper(

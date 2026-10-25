@@ -6,7 +6,7 @@
 
 Give Claude the ability to **watch and understand videos**.
 
-A Claude Code plugin that extracts frames via ffmpeg and processes audio via multiple backends (Gemini API, local Whisper, or OpenAI API). Claude receives frames as images and audio transcription with timestamps — the plugin is a **perception layer**, not an interpretation layer.
+A Claude Code plugin that extracts frames via ffmpeg and processes audio via multiple backends (Gemini API, local Whisper, OpenAI API, or Mistral Voxtral). Claude receives frames as images and audio transcription with timestamps — the plugin is a **perception layer**, not an interpretation layer.
 
 ## Features
 
@@ -84,6 +84,7 @@ Claude adapts parameters automatically:
 | **Gemini API** | Native (speech + non-speech events) | Free tier: 1500 req/day | `GEMINI_API_KEY` env var |
 | **Local (Whisper)** | `whisper.cpp` or Python `openai-whisper` | Free, fully offline | `brew install whisper-cpp` + auto model download |
 | **OpenAI API** | OpenAI Whisper API | Paid per usage | `OPENAI_API_KEY` env var |
+| **Mistral (Voxtral)** | Mistral `voxtral-mini-latest` (EU-hosted) | Paid per usage, free tier available | `MISTRAL_API_KEY` env var |
 
 **All backends** extract video frames via ffmpeg — Claude always has direct visual access.
 
@@ -128,6 +129,7 @@ Claude adapts parameters automatically:
   - Gemini API: free API key from [ai.google.dev](https://ai.google.dev/gemini-api/docs/api-key)
   - Local: `brew install whisper-cpp` (macOS) or equivalent
   - OpenAI: API key from OpenAI
+  - Mistral: API key from [console.mistral.ai](https://console.mistral.ai/api-keys); see the `vocabulary` setting below for recognition hints (`MISTRAL_CONTEXT_BIAS` is still honoured as a fallback); optional `MISTRAL_TRANSCRIPTION_MODEL` to override `voxtral-mini-latest`
 
 ## MCP Tools
 
@@ -163,9 +165,12 @@ Settings are stored in `~/.claude-video-vision/config.json`:
   "frame_describer_model": "sonnet",
   "enable_index": false,
   "session_max_age_days": 7,
-  "downloads_max_age_days": 7
+  "downloads_max_age_days": 7,
+  "vocabulary": []
 }
 ```
+
+`vocabulary` is a list of single words (acronyms, product names, people's names, up to 100) sent to Mistral as `context_bias` to prime recognition. Set it with `video_configure` (`vocabulary: ["CIGREF", "AFAI", "Anaplan"]` or a comma-separated string; multi-word entries are split). For a one-off run, the `CVV_VOCABULARY` environment variable overrides the config. **Mistral only**: Gemini has no equivalent parameter, and Whisper's initial prompt was measured to degrade French output when fed a word list, so the local backend ignores the setting.
 
 `frame_format` can be `jpeg`, `png`, or `webp`. `jpeg` remains the default for backwards compatibility; `png` is useful for screen recordings where text and sharp UI edges should stay lossless.
 

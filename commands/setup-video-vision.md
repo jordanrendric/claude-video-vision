@@ -18,6 +18,8 @@ Ask the user:
 >
 > **c) OpenAI Whisper API** — Good quality. Requires OPENAI_API_KEY. Paid per usage.
 >
+> **d) Mistral (Voxtral)** — Good quality, EU-hosted (GDPR). Transcribes with `voxtral-mini-latest`. Requires MISTRAL_API_KEY (console.mistral.ai). Paid per usage, with a free tier.
+>
 > All backends use ffmpeg to extract video frames — Claude sees the frames directly.
 
 After the user answers, call `video_configure` with the chosen `backend`.
@@ -104,6 +106,14 @@ If descriptions mode:
 > **c) Haiku** — Fastest, most concise
 
 Call `video_configure` with `frame_describer_model`.
+
+## Step 3b: Vocabulary (only if backend is "mistral")
+
+Ask the user:
+
+> Do you often transcribe videos with specific acronyms, product names or people's names? If so, list them (single words, comma-separated), and the speech recognizer will be primed with them. Example: `CIGREF, AFAI, OCDE, Anaplan, Pascal`. Leave empty to skip; you can change it any time with `video_configure`.
+
+Call `video_configure` with `vocabulary` (array of words). Mention that the list is sent to Mistral as `context_bias` and is not used by the other backends.
 
 ## Step 4: Dependency Check
 

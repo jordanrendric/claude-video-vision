@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { rmSync, existsSync } from "fs";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig, saveConfig } from "../config.js";
+import { normalizeVocabulary } from "../utils/vocabulary.js";
 
 const CONFIG_PATH = join(homedir(), ".claude-video-vision", "config.json");
 
@@ -12,7 +13,7 @@ export function registerVideoConfigure(server: McpServer): void {
     "video_configure",
     "Configure video perception preferences (backend, resolution, fps, whisper model, etc.)",
     {
-      backend: z.enum(["gemini-api", "local", "openai"]).optional(),
+      backend: z.enum(["gemini-api", "local", "openai", "mistral"]).optional(),
       whisper_engine: z.enum(["cpp", "python"]).optional(),
       whisper_model: z.enum(["tiny", "base", "small", "medium", "large-v3-turbo", "large-v3", "auto"]).optional(),
       whisper_at: z.boolean().optional(),
@@ -31,6 +32,8 @@ export function registerVideoConfigure(server: McpServer): void {
       audio_chunk_trigger_seconds: z.number().min(60).optional(),
       audio_chunk_size_seconds: z.number().min(60).optional(),
       audio_chunk_overlap_seconds: z.number().min(0).max(60).optional(),
+      vocabulary: z.union([z.array(z.string()), z.string()]).optional()
+        .describe("Domain vocabulary (acronyms, product and people names) that biases speech recognition. Array or comma-separated string; multi-word entries are split into words; max 100. Used by the mistral and local backends."),
     },
     async (params) => {
       if (params.clear_sessions) {
@@ -44,9 +47,8 @@ export function registerVideoConfigure(server: McpServer): void {
       const updated = { ...current };
 
       for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined && key !== "clear_sessions") {
-          (updated as any)[key] = value;
-        }
+        if (value === undefined || key === "clear_sessions") continue;
+        (updated as any)[key] = key === "vocabulary" ? normalizeVocabulary(value as string | string[]) : value;
       }
 
       saveConfig(CONFIG_PATH, updated);

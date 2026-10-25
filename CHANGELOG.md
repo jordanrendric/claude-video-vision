@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Mistral (Voxtral) audio backend.** New `backend: "mistral"` transcribes audio with `voxtral-mini-latest` through Mistral's OpenAI-compatible `audio/transcriptions` endpoint (EU-hosted). Requires `MISTRAL_API_KEY`; `MISTRAL_TRANSCRIPTION_MODEL` overrides the model. Exposed in `video_setup`, `video_configure` and the `/setup-video-vision` wizard. `MISTRAL_CONTEXT_BIAS` (comma-separated) passes Mistral's `context_bias` vocabulary hints.
+- **`vocabulary` setting.** A list of single words (acronyms, product and people names) sent to Mistral as `context_bias`. Set via `video_configure` or the setup wizard (step 3b); `CVV_VOCABULARY` overrides it for one-off runs. Whisper's initial prompt was evaluated for the same purpose and rejected: on a French technical webinar it fixed one acronym, broke six other words and coarsened segmentation.
+
+### Fixed
+
+- **Unknown backends are refused instead of silently falling back to Whisper.** A `config.json` written by a newer plugin version (or by hand) could name a backend this build does not implement; `video_watch` and `video_analyze` used to fall through to the local branch and transcribe with whisper.cpp without any warning. They now throw with the list of supported backends.
+
 ## [1.4.0] - 2026-10-05
 
 ### Changed
