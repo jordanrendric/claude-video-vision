@@ -188,22 +188,30 @@ async function transcribeWithWhisperPython(
   // gets reaped with it, instead of polluting the user's CWD.
   const outputDir = dirname(wavPath);
 
-  const { stdout } = await execFileAsync(command, [
+  await execFileAsync(command, [
     wavPath,
     "--model", model,
     "--output_format", "json",
     "--output_dir", outputDir,
   ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 });
 
-  // Best-effort cleanup of the on-disk JSON; we already have what we
-  // need on stdout via parseWhisperOutput. The CLI derives the output
-  // filename from the input wav, so derive it the same way.
-  try {
-    const jsonName = basename(wavPath, ".wav") + ".json";
-    rmSync(join(outputDir, jsonName), { force: true });
-  } catch { /* ignore */ }
+  // --output_format json writes a JSON *file*; stdout carries only the
+  // human-readable transcript plus the language-detection preamble, which
+  // parseWhisperOutput cannot parse. Read the file, then clean it up. The
+  // CLI derives the output filename from the input wav, so derive it the
+  // same way.
+  const jsonPath = join(outputDir, basename(wavPath, ".wav") + ".json");
+  if (!existsSync(jsonPath)) {
+    throw new Error(
+      `${command} did not produce expected JSON output at ${jsonPath}`,
+    );
+  }
+  const rawJson = readFileSync(jsonPath, "utf-8");
+  try { rmSync(jsonPath, { force: true }); } catch { /* best-effort cleanup */ }
 
-  return parseWhisperOutput(stdout);
+  // The Python CLI already emits segments[].start / .end in seconds, which is
+  // what parseWhisperOutput expects — no normalization layer needed here.
+  return parseWhisperOutput(rawJson);
 }
 
 function parseWhisperOutput(output: string): AudioResult {
